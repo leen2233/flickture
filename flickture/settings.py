@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import json
 from pathlib import Path
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -37,12 +38,14 @@ ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS"))
 
 INSTALLED_APPS = [
     'authentication.apps.AuthenticationConfig',
+    'core.apps.CoreConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework.authtoken'
 ]
 
 MIDDLEWARE = [
@@ -134,3 +137,14 @@ MEDIA_ROOT = 'media/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+AUTH_USER_MODEL = "authentication.User"
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
