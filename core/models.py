@@ -29,8 +29,8 @@ class Movie(models.Model):
     plot = models.TextField(blank=True, null=True)
     rating = models.FloatField(default=0)
     year = models.IntegerField(blank=True, null=True)
-    cover_url = models.URLField(blank=True, null=True)
-    cover_preview_url = models.URLField(blank=True, null=True)
+    poster_url = models.URLField(blank=True, null=True)
+    poster_preview_url = models.URLField(blank=True, null=True)
     kind = models.CharField(max_length=50, blank=True, null=True)
     directors = models.ManyToManyField(Person, related_name='directed_movies')
     cast = models.ManyToManyField(Person, related_name='acted_movies')
@@ -44,6 +44,8 @@ class Movie(models.Model):
 
 class Genre(models.Model):
     name = models.CharField(max_length=50)
+
+    objects = models.Manager()
 
     def __str__(self):
         return self.name
