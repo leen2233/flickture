@@ -31,10 +31,18 @@ class CustomUserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(blank=True, null=True, unique=True)
+    full_name = models.CharField(max_length=150, blank=True, null=True)
     password = models.CharField(max_length=128)
 
-    about = models.TextField(blank=True, null=True)
-    avatar = models.ImageField(upload_to="avatars", blank=True, null=True)
+    about = models.TextField(blank=True)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    banner_image = models.ImageField(upload_to='banners/', null=True, blank=True)
+    following = models.ManyToManyField(
+        'self',
+        symmetrical=False,
+        related_name='followers',
+        blank=True
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

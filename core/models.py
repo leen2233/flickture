@@ -1,5 +1,7 @@
 from django.db import models
 
+from authentication.models import User
+
 
 class Person(models.Model):
     name = models.CharField(max_length=255)
@@ -10,17 +12,6 @@ class Person(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class Filmography(models.Model):
-    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='filmography')
-    movie = models.ForeignKey('Movie', on_delete=models.CASCADE)
-    role = models.CharField(max_length=100, blank=True, null=True)
-
-    objects = models.Manager()
-
-    def __str__(self):
-        return f"{self.person.name} in {self.movie.title}"
 
 
 class Movie(models.Model):
@@ -49,3 +40,25 @@ class Genre(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Watchlist(models.Model):
+    class Statuses(models.TextChoices):
+        NOT_WATCHED = "not_wached", "Not Watched"
+        WATCHED = "watched", "watched"
+        WATCHING = "watching", "Watching"
+        FAVORITE = "favorite", "Favorite"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE)
+    status = models.CharField(
+        max_length=12,
+        choices=Statuses.choices,
+        default=Statuses.NOT_WATCHED
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    objects = models.Manager()
+
+    class Meta:
+        unique_together = ('user', 'movie')

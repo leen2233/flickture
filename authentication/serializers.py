@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from rest_framework.serializers import SerializerMethodField
+
+from core.models import Watchlist
 from .models import User
 
 
@@ -23,9 +26,26 @@ class SignUpSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    recently_watched = SerializerMethodField()
+    watchlist = SerializerMethodField()
+    favorites = SerializerMethodField()
+    stats = SerializerMethodField()
+    full_name = SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['username', 'about', 'avatar']
+        fields = [
+            'username',
+            'email',
+            'full_name',
+            'about',
+            'avatar',
+            'banner_image',
+            'recently_watched',
+            'watchlist',
+            'favorites',
+            'stats'
+        ]
 
     def validate_username(self, value):
         user = self.context['request'].user
@@ -33,3 +53,36 @@ class UserProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Username already taken.")
         return value
 
+    def get_full_name(self, obj):
+        return obj.full_name
+
+    def get_stats(self, obj):
+        return {
+            'movies_watched': Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHED).count(),
+            'following': obj.following.count(),
+            'followers': obj.followers.count()
+        }
+
+    def get_recently_watched(self, obj):
+        watchlist = Watchlist.objects.filter(
+            user=obj,
+            status=Watchlist.Statuses.WATCHED
+        ).order_by('-created_at')[:5]
+        from core.serializers import MovieSerializer
+        return MovieSerializer([item.movie for item in watchlist], many=True).data
+
+    def get_watchlist(self, obj):
+        watchlist = Watchlist.objects.filter(
+            user=obj,
+            status=Watchlist.Statuses.NOT_WATCHED
+        ).order_by('-created_at')[:5]
+        from core.serializers import MovieSerializer
+        return MovieSerializer([item.movie for item in watchlist], many=True).data
+
+    def get_favorites(self, obj):
+        watchlist = Watchlist.objects.filter(
+            user=obj,
+            status=Watchlist.Statuses.FAVORITE
+        ).order_by('-created_at')[:5]
+        from core.serializers import MovieSerializer
+        return MovieSerializer([item.movie for item in watchlist], many=True).data

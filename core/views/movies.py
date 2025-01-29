@@ -1,11 +1,8 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Movie, Genre, Person
-from .serializers import MovieSerializer
+from core.models import Movie, Genre, Person
+from core.serializers import MovieSerializer, MovieDetailSerializer
 from imdb import Cinemagoer
 
 ia = Cinemagoer()
@@ -41,8 +38,8 @@ class MovieSearchWidelyView(generics.GenericAPIView):
                         'plot': result.get('plot', ''),
                         'rating': result.get('rating', 0),
                         'year': result.get('year', 0),
-                        'poster_url': result.get("cover url", ''),
-                        'poster_preview_url': result.get("full-size cover url"),
+                        'poster_preview_url': result.get("cover url", ''),
+                        'poster_url': result.get("full-size cover url"),
                         'kind': result.get('kind', ''),
                     }
                 )
@@ -57,7 +54,7 @@ class MovieSearchWidelyView(generics.GenericAPIView):
 
 class MovieDetailView(generics.RetrieveAPIView):
     queryset = Movie.objects.all()
-    serializer_class = MovieSerializer
+    serializer_class = MovieDetailSerializer
     lookup_field = 'imdb_id'  # Assuming the lookup field is imdb_id
 
     def get(self, request, *args, **kwargs):
@@ -79,7 +76,7 @@ class MovieDetailView(generics.RetrieveAPIView):
             cast = movie_data.get("cast")
             for person in cast:
                 person_obj, created = Person.objects.get_or_create(name=person.get("name"),
-                                                          imdb_id=person.__dict__.get("personID"))
+                                                                   imdb_id=person.__dict__.get("personID"))
                 movie.cast.add(person_obj)
             # print(movie_data.__dict__)
             if movie_data.get("director"):
@@ -96,3 +93,4 @@ class MovieDetailView(generics.RetrieveAPIView):
 
         serializer = self.get_serializer(movie)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
