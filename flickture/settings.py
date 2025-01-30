@@ -147,3 +147,6 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ]
 }
+
+# TMDB API Settings
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")

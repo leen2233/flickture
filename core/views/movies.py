@@ -1,18 +1,26 @@
+import requests
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
-from core.models import Movie, Genre, Person
+from core.models import Movie, Genre, MovieCast, Person
 from core.serializers import MovieSerializer, MovieDetailSerializer
-from imdb import Cinemagoer
+from tmdbv3api import TMDb, Movie as TMDBMovie, Search, Genre as TMDBGenre
+from django.conf import settings
+from django.db.models import Count
+from datetime import datetime, timedelta
 
-ia = Cinemagoer()
+# Configure TMDB
+tmdb = TMDb()
+tmdb.api_key = settings.TMDB_API_KEY
+tmdb.language = 'en'
+tmdb.debug = True
 
 
 class MovieSearchView(generics.ListAPIView):
     serializer_class = MovieSerializer
 
     def get_queryset(self):
-        title = self.request.query_params.get('title', None)
+        title = self.request.query_params.get('query', None)
         if title:
             return Movie.objects.filter(title__icontains=title)
         return Movie.objects.none()
@@ -22,75 +30,213 @@ class MovieSearchWidelyView(generics.GenericAPIView):
     serializer_class = MovieSerializer
 
     def get(self, request):
-        title = request.query_params.get('title', None)
-        if title:
-            # Search in Cinemagoer
-            search_results = ia.search_movie(title)
-            movies_created = []
+        query = request.query_params.get('query', None)
+        if not query:
+            return Response(
+                {'detail': 'Query parameter is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            for result in search_results:
-                movie_id = result.__dict__.get("movieID")
-                # Check if movie exists in the database
+        try:
+            # Search movies using TMDB
+            print("Searching for movies...")
+            search = Search()
+            results = search.movies(query)
+
+            movies_created = []
+            for result in results:
+                # Get poster paths
+                poster_path = result.poster_path
+                backdrop_path = result.backdrop_path
+
+                # Construct full poster URLs
+                poster_url = f"https://image.tmdb.org/t/p/original{poster_path}" if poster_path else None
+                poster_preview_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+                backdrop_url = f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else None
+
+                # Create or update movie in database
                 movie, created = Movie.objects.get_or_create(
-                    imdb_id=movie_id,
+                    tmdb_id=result.id,
                     defaults={
-                        'title': result.get('title'),
-                        'plot': result.get('plot', ''),
-                        'rating': result.get('rating', 0),
-                        'year': result.get('year', 0),
-                        'poster_preview_url': result.get("cover url", ''),
-                        'poster_url': result.get("full-size cover url"),
-                        'kind': result.get('kind', ''),
+                        'title': result.title,
+                        'plot': result.overview,
+                        'rating': result.vote_average,
+                        'poster_url': poster_url,
+                        'poster_preview_url': poster_preview_url,
+                        'backdrop_url': backdrop_url,
+                        'year': result.release_date[:4] if hasattr(result, 'release_date') and result.release_date else None,
+                        'popularity': getattr(result, 'popularity', 0),
+                        'vote_count': getattr(result, 'vote_count', 0),
                     }
                 )
+
+                # if created:
+                #     if poster_url:
+                #         response = requests.get(poster_url)
+                #         if response.status_code == 200:
+                #             movie.photo.save(
+                #                 f"person_photo_{person_data['imdb_id']}.jpg",
+                #                 File(io.BytesIO(response.content)),
+                #                 save=True
+                #             )
+
                 movies_created.append(movie)
 
-            # Serialize the results
             serializer = self.get_serializer(movies_created, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({
+                'results': serializer.data,
+                'total_results': len(movies_created),
+                'page': 1
+            }, status=status.HTTP_200_OK)
 
-        return Response({'detail': 'Title parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {'detail': f'Failed to search movies: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class MovieDetailView(generics.RetrieveAPIView):
     queryset = Movie.objects.all()
     serializer_class = MovieDetailSerializer
-    lookup_field = 'imdb_id'  # Assuming the lookup field is imdb_id
+    lookup_field = 'tmdb_id'
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def get(self, request, *args, **kwargs):
-        movie = self.get_object()  # Get the movie object based on imdb_id
+        movie = self.get_object()
+        tmdb_movie = TMDBMovie()
 
-        # Check if rating or plot is missing
-        if not movie.rating or not movie.plot:
-            # Fetch details from Cinemagoer using the imdb_id
-            movie_data = ia.get_movie(movie.imdb_id)
-            # print(movie_data.infoset2keys)
-            if not movie.plot and 'plot' in movie_data:
-                movie.plot = movie_data.get('plot', [''])[0]  # Use the first plot summary if available
-            if not movie.rating and 'rating' in movie_data:
-                movie.rating = movie_data.get('rating', 0)
-            genres = movie_data.get("genres")
-            for genre in genres:
-                genre_obj, created = Genre.objects.get_or_create(name=genre)
-                movie.genres.add(genre_obj)
-            cast = movie_data.get("cast")
-            for person in cast:
-                person_obj, created = Person.objects.get_or_create(name=person.get("name"),
-                                                                   imdb_id=person.__dict__.get("personID"))
-                movie.cast.add(person_obj)
-            # print(movie_data.__dict__)
-            if movie_data.get("director"):
-                directors = movie_data.get("director")
-            else:
-                directors = movie_data.get("writer")
-            if directors:
-                for director in directors:
-                    person_obj, created = Person.objects.get_or_create(name=director.get("name"),
-                                                                       imdb_id=director.__dict__.get("personID"))
-                    movie.directors.add(person_obj)
+        # Check if we need to fetch additional details
+        if not movie.plot or not movie.rating or not movie.genres.exists():
+            try:
+                # Get detailed movie info from TMDB
+                movie_info = tmdb_movie.details(movie.tmdb_id)
 
-            movie.save()  # Save the updated movie details
+                # Update movie details
+                movie.title = movie_info.title
+                movie.plot = movie_info.overview
+                movie.rating = movie_info.vote_average
+                movie.year = movie_info.release_date[:4] if hasattr(movie_info, 'release_date') and movie_info.release_date else None
+                movie.runtime = getattr(movie_info, 'runtime', None)
+                movie.popularity = getattr(movie_info, 'popularity', 0)
+                movie.vote_count = getattr(movie_info, 'vote_count', 0)
+
+                # Update poster and backdrop URLs
+                if hasattr(movie_info, 'poster_path') and movie_info.poster_path:
+                    movie.poster_url = f"https://image.tmdb.org/t/p/original{movie_info.poster_path}"
+                    movie.poster_preview_url = f"https://image.tmdb.org/t/p/w500{movie_info.poster_path}"
+                if hasattr(movie_info, 'backdrop_path') and movie_info.backdrop_path:
+                    movie.backdrop_url = f"https://image.tmdb.org/t/p/original{movie_info.backdrop_path}"
+
+                # Update genres
+                for genre_data in movie_info.get('genres', []):
+                    genre, _ = Genre.objects.get_or_create(
+                        tmdb_id=genre_data['id'],
+                        defaults={'name': genre_data['name']}
+                    )
+                    movie.genres.add(genre)
+
+                movie.save()
+
+            except Exception as e:
+                return Response(
+                    {'detail': f'Failed to fetch movie details: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        if not movie.cast.exists():
+            credits = tmdb_movie.credits(movie.tmdb_id)
+            # Update cast
+            if hasattr(credits, 'cast'):
+                for cast_member in credits.cast._obj_list[:10]:  # Limit to top 10 cast members
+                    person, _ = Person.objects.get_or_create(
+                        tmdb_id=cast_member['id'],
+                        defaults={
+                            'name': cast_member['name'],
+                            'profile_path': f"https://image.tmdb.org/t/p/original{cast_member['profile_path']}" if cast_member.get('profile_path') else None
+                        }
+                    )
+                    MovieCast.objects.create(movie=movie, person=person, character=cast_member.get('character', None))
+
+            # Update directors
+            if hasattr(credits, 'crew'):
+                for crew_member in credits.crew:
+                    if crew_member['job'] == 'Director':
+                        person, _ = Person.objects.get_or_create(
+                            tmdb_id=crew_member['id'],
+                            defaults={
+                                'name': crew_member['name'],
+                                'profile_path': f"https://image.tmdb.org/t/p/original{crew_member['profile_path']}" if crew_member.get('profile_path') else None
+                            }
+                        )
+                        movie.directors.add(person)
 
         serializer = self.get_serializer(movie)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+class MovieListsView(generics.GenericAPIView):
+    serializer_class = MovieSerializer
+
+    def get(self, request):
+        # Get popular movies from TMDB and store in our DB
+        tmdb_movie = TMDBMovie()
+        popular_movies = tmdb_movie.popular()
+        now_playing = tmdb_movie.now_playing()
+
+        # Process and store popular movies
+        print(popular_movies['results'])
+        popular_stored = []
+        for movie in popular_movies['results']._obj_list[:12]:  # Limit to 12 movies
+            movie_obj, _ = Movie.objects.get_or_create(
+                tmdb_id=movie.id,
+                defaults={
+                    'title': movie.title,
+                    'plot': movie.overview,
+                    'rating': movie.vote_average,
+                    'poster_url': f"https://image.tmdb.org/t/p/original{movie.poster_path}" if movie.poster_path else None,
+                    'poster_preview_url': f"https://image.tmdb.org/t/p/w500{movie.poster_path}" if movie.poster_path else None,
+                    'backdrop_url': f"https://image.tmdb.org/t/p/original{movie.backdrop_path}" if movie.backdrop_path else None,
+                    'year': movie.release_date[:4] if hasattr(movie, 'release_date') and movie.release_date else None,
+                    'popularity': getattr(movie, 'popularity', 0),
+                    'vote_count': getattr(movie, 'vote_count', 0),
+                }
+            )
+            popular_stored.append(movie_obj)
+
+        # Process and store now playing movies
+        now_playing_stored = []
+        for movie in now_playing['results']._obj_list[:12]:
+            movie_obj, _ = Movie.objects.get_or_create(
+                tmdb_id=movie.id,
+                defaults={
+                    'title': movie.title,
+                    'plot': movie.overview,
+                    'rating': movie.vote_average,
+                    'poster_url': f"https://image.tmdb.org/t/p/original{movie.poster_path}" if movie.poster_path else None,
+                    'poster_preview_url': f"https://image.tmdb.org/t/p/w500{movie.poster_path}" if movie.poster_path else None,
+                    'backdrop_url': f"https://image.tmdb.org/t/p/original{movie.backdrop_path}" if movie.backdrop_path else None,
+                    'year': movie.release_date[:4] if hasattr(movie, 'release_date') and movie.release_date else None,
+                    'popularity': getattr(movie, 'popularity', 0),
+                    'vote_count': getattr(movie, 'vote_count', 0),
+                }
+            )
+            now_playing_stored.append(movie_obj)
+
+        # Get top rated movies from our database
+        top_rated = Movie.objects.filter(
+            rating__gt=0,
+            vote_count__gt=1000
+        ).order_by('-rating')[:12]
+
+        response_data = {
+            'popular': self.get_serializer(popular_stored, many=True).data,
+            'now_playing': self.get_serializer(now_playing_stored, many=True).data,
+            'top_rated': self.get_serializer(top_rated, many=True).data,
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)

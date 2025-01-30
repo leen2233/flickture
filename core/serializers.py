@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Movie, Genre, Person, Watchlist
+from .models import Movie, Genre, MovieCast, Person, Watchlist
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -19,20 +19,72 @@ class MovieSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Movie
-        fields = ["title", "imdb_id", "year", "poster_preview_url", "kind", "genres"]
+        fields = [
+            "id",
+            "tmdb_id",
+            "title",
+            "year",
+            "plot",
+            "rating",
+            "poster_url",
+            "poster_preview_url",
+            "backdrop_url",
+            "popularity",
+            "vote_count",
+            "genres"
+        ]
+
+
+class MovieCastSerializer(serializers.ModelSerializer):
+    person = PersonSerializer()
+
+    class Meta:
+        model = MovieCast
+        fields = ['person', 'character']
 
 
 class MovieDetailSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True)
     directors = PersonSerializer(many=True)
     cast_preview = serializers.SerializerMethodField()
+    watchlist_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Movie
-        exclude = ["cast"]
+        fields = [
+            "id",
+            "tmdb_id",
+            "title",
+            "year",
+            "plot",
+            "rating",
+            "runtime",
+            "poster_url",
+            "poster_preview_url",
+            "backdrop_url",
+            "popularity",
+            "vote_count",
+            "genres",
+            "directors",
+            "cast_preview",
+            "watchlist_status",
+        ]
 
     def get_cast_preview(self, obj):
-        return PersonSerializer(obj.cast.all()[:5], many=True).data
+        return MovieCastSerializer(obj.cast.all()[:10], many=True).data
+
+    def get_watchlist_status(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            try:
+                watchlist_item = Watchlist.objects.get(
+                    user=request.user,
+                    movie=obj
+                )
+                return watchlist_item.status
+            except Watchlist.DoesNotExist:
+                return None
+        return None
 
 
 class WatchlistSerializer(serializers.ModelSerializer):

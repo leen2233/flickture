@@ -74,7 +74,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_watchlist(self, obj):
         watchlist = Watchlist.objects.filter(
             user=obj,
-            status=Watchlist.Statuses.NOT_WATCHED
+            status=Watchlist.Statuses.WATCHLIST
         ).order_by('-created_at')[:5]
         from core.serializers import MovieSerializer
         return MovieSerializer([item.movie for item in watchlist], many=True).data
