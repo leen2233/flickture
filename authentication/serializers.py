@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
 
-from core.models import Watchlist
+from core.models import Favorite, Watchlist
 from .models import User
 
 
@@ -82,12 +82,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         } for item in watchlist]
 
     def get_favorites(self, obj):
-        watchlist = Watchlist.objects.filter(
-            user=obj,
-            status=Watchlist.Statuses.FAVORITE
+        favorites = Favorite.objects.filter(
+            user=obj
         ).order_by('-created_at')[:5]
         from core.serializers import MovieSerializer
         return [{
             'movie': MovieSerializer(item.movie).data,
             'updated_at': item.created_at
-        } for item in watchlist]
+        } for item in favorites]

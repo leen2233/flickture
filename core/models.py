@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 from authentication.models import User
 
@@ -63,7 +64,6 @@ class Watchlist(models.Model):
         WATCHLIST = "watchlist", "In Watchlist"
         WATCHED = "watched", "Watched"
         WATCHING = "watching", "Watching"
-        FAVORITE = "favorite", "Favorite"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE)
@@ -81,6 +81,18 @@ class Watchlist(models.Model):
         unique_together = ('user', 'movie')
 
 
+class Favorite(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'movie')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.movie.title}"
+
+
 class Collection(models.Model):
     tmdb_id = models.IntegerField(unique=True)
     name = models.CharField(max_length=255)
@@ -92,3 +104,28 @@ class Collection(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Comment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='comments')
+    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='responses')
+    likes = models.ManyToManyField(User, related_name='liked_comments', blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Comment by {self.user.username} on {self.movie.title}'
+
+    @property
+    def likes_count(self):
+        return self.likes.count()
+
+    @property
+    def responses_count(self):
+        return self.responses.count()

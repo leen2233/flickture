@@ -2,12 +2,16 @@ import requests
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
-from core.models import Movie, Genre, MovieCast, Person, Collection, Watchlist
-from core.serializers import MovieSerializer, MovieDetailSerializer, WatchlistMoviesSerializer
+from core.models import Favorite, Movie, Genre, MovieCast, Person, Collection, Watchlist, Comment
+from core.serializers import MovieSerializer, MovieDetailSerializer, WatchlistMoviesSerializer, CommentSerializer, CommentCreateSerializer
 from tmdbv3api import TMDb, Movie as TMDBMovie, Search, Genre as TMDBGenre, Collection as TMDBCollection
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Q
 from datetime import datetime, timedelta
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets
 
 # Configure TMDB
 tmdb = TMDb()
@@ -278,30 +282,99 @@ class MovieListsView(generics.GenericAPIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 
-# Add this new view to handle movie lists
+class MoviePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class MovieListView(generics.ListAPIView):
     serializer_class = WatchlistMoviesSerializer
+    pagination_class = MoviePagination
 
     def get_queryset(self):
         list_type = self.kwargs.get('list_type')
         user = self.request.user
+        search_query = self.request.query_params.get('search', '')
 
         if not user.is_authenticated:
             return []
 
         watchlist_items = Watchlist.objects.filter(user=user)
 
-        if list_type == 'recently_watched':
+        if search_query:
+            watchlist_items = watchlist_items.filter(
+                Q(movie__title__icontains=search_query)
+            )
+
+        if list_type == 'recently-watched':
             return watchlist_items.filter(
                 status=Watchlist.Statuses.WATCHED
             ).order_by('-updated_at')
-        elif list_type == 'want_to_watch':
+        elif list_type == 'want-to-watch':
             return watchlist_items.filter(
                 status=Watchlist.Statuses.WATCHLIST
             ).order_by('-created_at')
         elif list_type == 'favorites':
-            return watchlist_items.filter(
-                status=Watchlist.Statuses.FAVORITE
+            return Favorite.objects.filter(
+                user=user
             ).order_by('-created_at')
 
         return []
+
+
+class MovieCommentsViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = MoviePagination
+
+    def get_queryset(self):
+        movie_id = self.kwargs.get('movie_id')
+        rating = self.request.query_params.get('rating')
+        sort_by = self.request.query_params.get('sort_by', 'date')
+
+        queryset = Comment.objects.filter(movie__tmdb_id=movie_id, parent=None)
+
+        if int(rating):
+            queryset = queryset.filter(rating=rating)
+
+        if sort_by == 'likes':
+            queryset = queryset.annotate(likes_count=Count('likes')).order_by('-likes_count')
+        elif sort_by == 'rating':
+            queryset = queryset.order_by('-rating')
+        else:  # default sort by date
+            queryset = queryset.order_by('-created_at')
+        return queryset
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update']:
+            return CommentCreateSerializer
+        return CommentSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.action == 'create':
+            context['movie_id'] = self.kwargs.get('movie_id')
+        return context
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def toggle_comment_like(request, comment_id):
+    try:
+        comment = Comment.objects.get(id=comment_id)
+        user = request.user
+
+        if comment.likes.filter(id=user.id).exists():
+            comment.likes.remove(user)
+            liked = False
+        else:
+            comment.likes.add(user)
+            liked = True
+
+        return Response({
+            'liked': liked,
+            'likes_count': comment.likes_count
+        })
+    except Comment.DoesNotExist:
+        return Response({'error': 'Comment not found'}, status=status.HTTP_404_NOT_FOUND)

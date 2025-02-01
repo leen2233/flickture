@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import Movie, Genre, MovieCast, Person, Watchlist, Collection
+
+from authentication.models import User
+from .models import Movie, Genre, MovieCast, Person, Watchlist, Collection, Favorite, Comment
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -16,6 +18,7 @@ class PersonSerializer(serializers.ModelSerializer):
 
 class MovieSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True)
+    is_favorite = serializers.SerializerMethodField()
 
     class Meta:
         model = Movie
@@ -31,8 +34,18 @@ class MovieSerializer(serializers.ModelSerializer):
             "backdrop_url",
             "popularity",
             "vote_count",
-            "genres"
+            "genres",
+            "is_favorite",
         ]
+
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(
+                user=request.user,
+                movie=obj
+            ).exists()
+        return False
 
 
 class MovieCastSerializer(serializers.ModelSerializer):
@@ -54,6 +67,7 @@ class MovieDetailSerializer(serializers.ModelSerializer):
     directors = PersonSerializer(many=True)
     cast_preview = serializers.SerializerMethodField()
     watchlist_status = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
     collection = CollectionSerializer()
     collection_movies = serializers.SerializerMethodField()
 
@@ -76,6 +90,7 @@ class MovieDetailSerializer(serializers.ModelSerializer):
             "directors",
             "cast_preview",
             "watchlist_status",
+            "is_favorite",
             "collection",
             "collection_movies",
         ]
@@ -96,6 +111,15 @@ class MovieDetailSerializer(serializers.ModelSerializer):
                 return None
         return None
 
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(
+                user=request.user,
+                movie=obj
+            ).exists()
+        return False
+
     def get_collection_movies(self, obj):
         if obj.collection:
             return MovieSerializer(
@@ -106,11 +130,28 @@ class MovieDetailSerializer(serializers.ModelSerializer):
 
 
 class WatchlistMoviesSerializer(serializers.ModelSerializer):
-    movie = MovieSerializer()
+    movie = serializers.SerializerMethodField()
+    watchlist_status = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
 
     class Meta:
         model = Watchlist
-        fields = ['id', 'status', 'created_at', 'movie']
+        fields = ['id', 'status', 'created_at', 'updated_at', 'movie', 'watchlist_status', 'is_favorite']
+
+    def get_watchlist_status(self, obj):
+        return obj.status
+
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(
+                user=request.user,
+                movie=obj.movie
+            ).exists()
+        return False
+
+    def get_movie(self, obj):
+        return MovieSerializer(obj.movie, context=self.context).data
 
 
 class WatchlistSerializer(serializers.ModelSerializer):
@@ -138,3 +179,48 @@ class WatchlistSerializer(serializers.ModelSerializer):
 
         # Update other fields
         return super().update(instance, validated_data)
+
+
+class CommentUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'avatar']
+
+
+class CommentResponseSerializer(serializers.ModelSerializer):
+    user = CommentUserSerializer()
+    date = serializers.DateTimeField(source='created_at', format='%Y-%m-%d')
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'user', 'content', 'date']
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    user = CommentUserSerializer()
+    responses = CommentResponseSerializer(many=True)
+    date = serializers.DateTimeField(source='created_at', format='%Y-%m-%d')
+    likes = serializers.IntegerField(source='likes_count')
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'user', 'rating', 'content', 'date', 'likes', 'is_liked', 'responses']
+
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(id=request.user.id).exists()
+        return False
+
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    rating = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = Comment
+        fields = ['movie', 'rating', 'content', 'parent']
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
