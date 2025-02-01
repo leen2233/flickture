@@ -30,7 +30,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     watchlist = SerializerMethodField()
     favorites = SerializerMethodField()
     stats = SerializerMethodField()
-    full_name = SerializerMethodField()
 
     class Meta:
         model = User
@@ -53,9 +52,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Username already taken.")
         return value
 
-    def get_full_name(self, obj):
-        return obj.full_name
-
     def get_stats(self, obj):
         return {
             'movies_watched': Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHED).count(),
@@ -69,7 +65,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             status=Watchlist.Statuses.WATCHED
         ).order_by('-created_at')[:5]
         from core.serializers import MovieSerializer
-        return MovieSerializer([item.movie for item in watchlist], many=True).data
+        return [{
+            'movie': MovieSerializer(item.movie).data,
+            'updated_at': item.created_at
+        } for item in watchlist]
 
     def get_watchlist(self, obj):
         watchlist = Watchlist.objects.filter(
@@ -77,7 +76,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             status=Watchlist.Statuses.WATCHLIST
         ).order_by('-created_at')[:5]
         from core.serializers import MovieSerializer
-        return MovieSerializer([item.movie for item in watchlist], many=True).data
+        return [{
+            'movie': MovieSerializer(item.movie).data,
+            'updated_at': item.created_at
+        } for item in watchlist]
 
     def get_favorites(self, obj):
         watchlist = Watchlist.objects.filter(
@@ -85,4 +87,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             status=Watchlist.Statuses.FAVORITE
         ).order_by('-created_at')[:5]
         from core.serializers import MovieSerializer
-        return MovieSerializer([item.movie for item in watchlist], many=True).data
+        return [{
+            'movie': MovieSerializer(item.movie).data,
+            'updated_at': item.created_at
+        } for item in watchlist]

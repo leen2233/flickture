@@ -29,6 +29,7 @@ class Movie(models.Model):
     kind = models.CharField(max_length=50, blank=True, null=True)
     directors = models.ManyToManyField('Person', related_name='directed_movies')
     genres = models.ManyToManyField('Genre')
+    collection = models.ForeignKey('Collection', on_delete=models.SET_NULL, null=True, blank=True, related_name='movies')
 
     objects = models.Manager()
 
@@ -73,7 +74,21 @@ class Watchlist(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     objects = models.Manager()
 
     class Meta:
         unique_together = ('user', 'movie')
+
+
+class Collection(models.Model):
+    tmdb_id = models.IntegerField(unique=True)
+    name = models.CharField(max_length=255)
+    overview = models.TextField(null=True, blank=True)
+    poster_url = models.URLField(max_length=500, null=True, blank=True)
+    backdrop_url = models.URLField(max_length=500, null=True, blank=True)
+
+    objects = models.Manager()
+
+    def __str__(self):
+        return self.name

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Movie, Genre, MovieCast, Person, Watchlist
+from .models import Movie, Genre, MovieCast, Person, Watchlist, Collection
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -43,11 +43,19 @@ class MovieCastSerializer(serializers.ModelSerializer):
         fields = ['person', 'character']
 
 
+class CollectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Collection
+        fields = ['id', 'tmdb_id', 'name', 'overview', 'poster_url', 'backdrop_url']
+
+
 class MovieDetailSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True)
     directors = PersonSerializer(many=True)
     cast_preview = serializers.SerializerMethodField()
     watchlist_status = serializers.SerializerMethodField()
+    collection = CollectionSerializer()
+    collection_movies = serializers.SerializerMethodField()
 
     class Meta:
         model = Movie
@@ -68,6 +76,8 @@ class MovieDetailSerializer(serializers.ModelSerializer):
             "directors",
             "cast_preview",
             "watchlist_status",
+            "collection",
+            "collection_movies",
         ]
 
     def get_cast_preview(self, obj):
@@ -85,6 +95,22 @@ class MovieDetailSerializer(serializers.ModelSerializer):
             except Watchlist.DoesNotExist:
                 return None
         return None
+
+    def get_collection_movies(self, obj):
+        if obj.collection:
+            return MovieSerializer(
+                obj.collection.movies.exclude(id=obj.id).order_by('-year')[:4],
+                many=True
+            ).data
+        return None
+
+
+class WatchlistMoviesSerializer(serializers.ModelSerializer):
+    movie = MovieSerializer()
+
+    class Meta:
+        model = Watchlist
+        fields = ['id', 'status', 'created_at', 'movie']
 
 
 class WatchlistSerializer(serializers.ModelSerializer):

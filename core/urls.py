@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import MovieSearchView, MovieSearchWidelyView, MovieDetailView, CastListAPIView, PersonDetailView, \
-    PersonFilmographyListView, WatchlistAPIView, MovieListsView
+    PersonFilmographyListView, WatchlistAPIView, MovieListsView, MovieListView
 
 urlpatterns = [
     path('search/', MovieSearchView.as_view(), name='movie-search'),
@@ -12,4 +12,5 @@ urlpatterns = [
     path("watchlist/", WatchlistAPIView.as_view(), name="watchlist"),
     path("watchlist/<str:tmdb_id>/", WatchlistAPIView.as_view(), name="watchlist-detail"),
     path('lists/', MovieListsView.as_view(), name='movie-lists'),
+    path('lists/<str:list_type>/', MovieListView.as_view(), name='movie-list'),
 ]

@@ -2,9 +2,9 @@ import requests
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
-from core.models import Movie, Genre, MovieCast, Person
-from core.serializers import MovieSerializer, MovieDetailSerializer
-from tmdbv3api import TMDb, Movie as TMDBMovie, Search, Genre as TMDBGenre
+from core.models import Movie, Genre, MovieCast, Person, Collection, Watchlist
+from core.serializers import MovieSerializer, MovieDetailSerializer, WatchlistMoviesSerializer
+from tmdbv3api import TMDb, Movie as TMDBMovie, Search, Genre as TMDBGenre, Collection as TMDBCollection
 from django.conf import settings
 from django.db.models import Count
 from datetime import datetime, timedelta
@@ -142,6 +142,42 @@ class MovieDetailView(generics.RetrieveAPIView):
 
                 movie.save()
 
+                # If there's a collection, fetch its details
+                if movie_info.get('belongs_to_collection'):
+                    # add collection
+                    collection_data = TMDBCollection().details(movie_info.belongs_to_collection['id'])
+                    collection_object, created = Collection.objects.get_or_create(
+                        tmdb_id=collection_data.id,
+                        defaults={
+                            'name': collection_data.name,
+                            'overview': collection_data.overview,
+                            'poster_url': f"https://image.tmdb.org/t/p/original{collection_data.poster_path}" if collection_data.poster_path else None,
+                            'backdrop_url': f"https://image.tmdb.org/t/p/original{collection_data.backdrop_path}" if collection_data.backdrop_path else None,
+                        }
+                    )
+                    for movie_item in collection_data.parts:
+                        if Movie.objects.filter(tmdb_id=movie_item.id).exists():
+                            Movie.objects.filter(tmdb_id=movie_item.id).update(collection=collection_object)
+                        else:
+                            movie_details = tmdb_movie.details(movie_item.id)
+                            Movie.objects.create(
+                                tmdb_id=movie_details.id,
+                                title=movie_details.title,
+                                plot=movie_details.overview,
+                                rating=movie_details.vote_average,
+                                runtime=movie_details.runtime,
+                                popularity=movie_details.popularity,
+                                vote_count=movie_details.vote_count,
+                                year=movie_details.release_date[:4] if hasattr(
+                                    movie_details, 'release_date') and movie_details.release_date else None,
+                                poster_url=f"https://image.tmdb.org/t/p/original{movie_details.poster_path}" if movie_details.poster_path else None,
+                                poster_preview_url=f"https://image.tmdb.org/t/p/w500{
+                                    movie_details.poster_path}" if movie_details.poster_path else None,
+                                backdrop_url=f"https://image.tmdb.org/t/p/original{
+                                    movie_details.backdrop_path}" if movie_details.backdrop_path else None,
+                                collection=collection_object
+                            )
+
             except Exception as e:
                 return Response(
                     {'detail': f'Failed to fetch movie details: {str(e)}'},
@@ -240,3 +276,32 @@ class MovieListsView(generics.GenericAPIView):
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+# Add this new view to handle movie lists
+class MovieListView(generics.ListAPIView):
+    serializer_class = WatchlistMoviesSerializer
+
+    def get_queryset(self):
+        list_type = self.kwargs.get('list_type')
+        user = self.request.user
+
+        if not user.is_authenticated:
+            return []
+
+        watchlist_items = Watchlist.objects.filter(user=user)
+
+        if list_type == 'recently_watched':
+            return watchlist_items.filter(
+                status=Watchlist.Statuses.WATCHED
+            ).order_by('-updated_at')
+        elif list_type == 'want_to_watch':
+            return watchlist_items.filter(
+                status=Watchlist.Statuses.WATCHLIST
+            ).order_by('-created_at')
+        elif list_type == 'favorites':
+            return watchlist_items.filter(
+                status=Watchlist.Statuses.FAVORITE
+            ).order_by('-created_at')
+
+        return []
