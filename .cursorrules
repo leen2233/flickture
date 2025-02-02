@@ -1,0 +1,291 @@
+# Flickture Backend Project Rules and Guidelines
+
+## Project Structure
+
+```
+backend/
+├── authentication/     # User authentication app
+├── core/              # Main application logic
+│   ├── models/        # Database models
+│   ├── serializers/   # API serializers
+│   ├── views/         # API views and viewsets
+│   ├── utils/         # Utility functions and classes
+│   └── tests/         # Test cases
+├── flickture/         # Project configuration
+├── media/            # User uploaded files
+└── urls.py          # Main URL configuration
+```
+
+## Key Architecture Points
+
+1. API Versioning
+
+- All endpoints are versioned (currently v1)
+- Version is included in URL path: `/api/v1/`
+
+2. TMDB Integration
+
+- All TMDB API interactions through TMDBClient
+- Cache responses to reduce API calls
+- Process and store data locally when possible
+- Keep TMDB_API_KEY in .env file
+
+3. Database Design
+
+- Use appropriate indexes for frequent queries
+- Implement model managers for complex queries
+- Follow Django's model relationship best practices
+- Keep migrations clean and reversible
+
+4. Caching Strategy
+
+- Cache TMDB API responses (1 hour)
+- Cache movie details (24 hours)
+- Cache discover results (1 hour)
+- Use Django's cache framework consistently
+
+## Coding Standards
+
+1. Models
+
+- Include docstrings for all models
+- Define Meta class with ordering
+- Add appropriate indexes
+- Implement custom managers for complex queries
+- Use model validators
+- Keep related fields together
+
+```python
+class Movie(models.Model):
+    # Basic fields first
+    title = models.CharField(max_length=255)
+
+    # Related fields together
+    directors = models.ManyToManyField('Person')
+    genres = models.ManyToManyField('Genre')
+
+    # Meta and managers
+    objects = MovieManager()
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [...]
+```
+
+2. Views
+
+- Use appropriate generic views
+- Include comprehensive docstrings
+- Implement proper error handling
+- Use pagination where needed
+- Cache expensive operations
+- Validate input data
+
+```python
+class MovieDetailView(generics.RetrieveAPIView):
+    """
+    Detailed docstring with:
+    - Purpose
+    - Parameters
+    - Response format
+    """
+    queryset = Movie.objects.select_related('...')
+    serializer_class = MovieDetailSerializer
+
+    @method_decorator(cache_page(60 * 60 * 24))
+    def get(self, request, *args, **kwargs):
+        try:
+            # Implementation
+        except Exception as e:
+            # Error handling
+```
+
+3. Serializers
+
+- Use nested serializers appropriately
+- Implement proper validation
+- Use read_only fields where appropriate
+- Include field-level validation
+- Optimize queries in SerializerMethodFields
+
+```python
+class MovieSerializer(serializers.ModelSerializer):
+    genres = GenreSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Movie
+        fields = [...]
+        read_only_fields = [...]
+```
+
+4. URL Patterns
+
+- Use semantic URLs
+- Group related endpoints
+- Include proper naming
+- Use appropriate HTTP methods
+
+```python
+urlpatterns = [
+    path('movies/discover/', MovieDiscoverView.as_view()),
+    path('movies/<str:tmdb_id>/', MovieDetailView.as_view()),
+]
+```
+
+## Testing Guidelines
+
+1. Test Coverage
+
+- Maintain minimum 80% coverage
+- Test all API endpoints
+- Test edge cases
+- Mock external API calls
+
+2. Test Organization
+
+- Group tests by functionality
+- Use appropriate test classes
+- Include setup and teardown
+- Mock complex dependencies
+
+```python
+class MovieAPITests(APITestCase):
+    def setUp(self):
+        # Setup test data
+
+    def test_movie_detail(self):
+        # Test implementation
+```
+
+## Performance Guidelines
+
+1. Database Optimization
+
+- Use select_related() for foreign keys
+- Use prefetch_related() for reverse relations
+- Create appropriate indexes
+- Monitor query counts
+
+2. Caching
+
+- Cache expensive computations
+- Use appropriate cache timeouts
+- Clear cache when data changes
+- Monitor cache hit rates
+
+3. API Optimization
+
+- Paginate list endpoints
+- Limit nested serializer depth
+- Use appropriate serializers for different views
+- Optimize database queries
+
+## Security Guidelines
+
+1. Authentication
+
+- Use token authentication
+- Implement proper permissions
+- Validate user input
+- Protect sensitive data
+
+2. Data Protection
+
+- Store sensitive data in .env
+- Use Django's security middleware
+- Implement rate limiting
+- Validate file uploads
+
+3. API Security
+
+- Use HTTPS in production
+- Implement CORS properly
+- Validate request data
+- Handle errors securely
+
+## Deployment Guidelines
+
+1. Environment Setup
+
+- Use different settings for dev/prod
+- Store secrets in .env
+- Configure logging properly
+- Set up monitoring
+
+2. Database
+
+- Regular backups
+- Database migrations
+- Index optimization
+- Query monitoring
+
+3. Caching
+
+- Configure Redis
+- Monitor cache performance
+- Implement cache warming
+- Handle cache invalidation
+
+## Maintenance Guidelines
+
+1. Code Quality
+
+- Run linters (flake8, pylint)
+- Format code (black)
+- Type checking (mypy)
+- Documentation updates
+
+2. Dependencies
+
+- Regular dependency updates
+- Security patches
+- Compatibility testing
+- Version pinning
+
+3. Monitoring
+
+- Error tracking
+- Performance monitoring
+- API usage metrics
+- Cache performance
+
+## Development Workflow
+
+1. Feature Development
+
+- Create feature branch
+- Write tests first
+- Implement feature
+- Update documentation
+
+2. Code Review
+
+- Check coding standards
+- Verify test coverage
+- Review performance impact
+- Security considerations
+
+3. Deployment
+
+- Test in staging
+- Database migrations
+- Cache warming
+- Monitoring setup
+
+## Documentation Requirements
+
+1. Code Documentation
+
+- Docstrings for all classes/methods
+- API endpoint documentation
+- Implementation notes
+- Update README.md
+
+2. API Documentation
+
+- OpenAPI/Swagger specs
+- Example requests/responses
+- Authentication details
+- Error handling
+
+Remember to update this file as the project evolves and new patterns or requirements emerge.

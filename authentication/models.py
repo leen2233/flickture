@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.core.exceptions import ValidationError
+from rest_framework.authtoken.models import Token
 
 
 class CustomUserManager(BaseUserManager):
@@ -10,9 +11,11 @@ class CustomUserManager(BaseUserManager):
         if not email:
             raise ValueError('Either Email or Phone must be set')
 
+        email = self.normalize_email(email)
         user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
+        token, created = Token.objects.get_or_create(user=user)
         return user
 
     def create_superuser(self, username, email="testadminuser@test.com", password=None, **extra_fields):
@@ -55,6 +58,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     def clean(self):
         if not self.email:
             raise ValidationError('Either email or phone must be provided.')
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.username
