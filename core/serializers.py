@@ -81,19 +81,19 @@ class CollectionSerializer(serializers.ModelSerializer):
 
 class MovieDetailSerializer(MovieSerializer):
     directors = PersonSerializer(many=True, read_only=True)
-    cast = MovieCastSerializer(source='cast_preview', many=True, read_only=True)
     watchlist_status = serializers.SerializerMethodField()
-    collection = CollectionSerializer(read_only=True)
-    collection_preview = serializers.SerializerMethodField()
+    collection = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    cast_preview = serializers.SerializerMethodField()
 
     class Meta(MovieSerializer.Meta):
         fields = MovieSerializer.Meta.fields + [
             "runtime",
             "directors",
-            "cast",
+            "cast_preview",
             "watchlist_status",
             "collection",
-            "collection_preview",
+            "comment_count"
         ]
 
     def get_cast_preview(self, obj):
@@ -110,11 +110,15 @@ class MovieDetailSerializer(MovieSerializer):
                 return None
         return None
 
-    def get_collection_preview(self, obj):
+    def get_collection(self, obj):
+        print("collection", obj.collection)
         if obj.collection:
-            preview_movies = obj.collection.movies.exclude(id=obj.id).order_by('-year')[:4]
+            preview_movies = obj.collection.movies.exclude(id=obj.id).order_by('-year')
             return MovieListSerializer(preview_movies, many=True, context=self.context).data
         return None
+
+    def get_comment_count(self, obj):
+        return obj.comments.count()
 
 
 class WatchlistSerializer(BaseSerializer):
@@ -153,6 +157,7 @@ class CommentSerializer(BaseSerializer):
     user = UserSerializer(read_only=True)
     likes_count = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
     responses = serializers.SerializerMethodField()
     rating = serializers.IntegerField(
         required=False,
@@ -164,7 +169,7 @@ class CommentSerializer(BaseSerializer):
         fields = [
             'id', 'user', 'movie', 'rating', 'content',
             'created_at', 'updated_at', 'likes_count',
-            'is_liked', 'responses'
+            'is_liked', 'responses', 'is_owner'
         ]
         read_only_fields = ['user', 'likes_count', 'created_at', 'updated_at']
 
@@ -172,6 +177,12 @@ class CommentSerializer(BaseSerializer):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.likes.filter(id=request.user.id).exists()
+        return False
+
+    def get_is_owner(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.user == request.user
         return False
 
     def get_responses(self, obj):

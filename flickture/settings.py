@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
     'drf_yasg',
@@ -186,3 +187,7 @@ REST_FRAMEWORK = {
 
 # TMDB API Settings
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+# Add these settings
+CONN_MAX_AGE = 60  # Database connection max age in seconds
+REQUEST_TIMEOUT = 30  # Request timeout in seconds

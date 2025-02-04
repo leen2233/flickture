@@ -60,6 +60,7 @@ class UserProfileUpdateView(generics.RetrieveUpdateAPIView):
         operation_description="Get current user's profile information",
         responses={
             200: UserProfileSerializer,
+            401: 'Unauthorized - Invalid or missing token',
             403: 'Forbidden - Not authenticated'
         },
         security=[{'Token': []}]
@@ -82,6 +83,7 @@ class UserProfileUpdateView(generics.RetrieveUpdateAPIView):
         responses={
             200: UserProfileSerializer,
             400: 'Bad Request - Invalid data',
+            401: 'Unauthorized - Invalid or missing token',
             403: 'Forbidden - Not authenticated'
         },
         security=[{'Token': []}]

@@ -2,7 +2,7 @@ import requests
 from rest_framework import generics, viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError, NotFound
 from django.conf import settings
@@ -116,6 +116,7 @@ class MovieDetailView(generics.RetrieveAPIView):
     """Retrieve detailed movie information."""
     queryset = Movie.objects.all()
     serializer_class = MovieDetailSerializer
+    permission_classes = [AllowAny]
     lookup_field = 'tmdb_id'
 
     def get_object(self):
@@ -132,7 +133,7 @@ class MovieDetailView(generics.RetrieveAPIView):
             404: 'Movie not found'
         }
     )
-    @method_decorator(cache_page(60 * 60 * 24))  # Cache for 24 hours
+    # @method_decorator(cache_page(60 * 60 * 24))  # Cache for 24 hours
     def get(self, request, *args, **kwargs):
         try:
             movie = self.get_object()
@@ -349,7 +350,7 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         movie_id = self.kwargs.get('movie_id')
         return Comment.objects.filter(
-            movie_id=movie_id,
+            movie__tmdb_id=movie_id,
             parent__isnull=True
         ).prefetch_related(
             'user',
@@ -411,10 +412,10 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
 
         if user in comment.likes.all():
             comment.likes.remove(user)
-            return Response({'detail': 'Comment unliked'})
+            return Response({'liked': False, 'likes_count': comment.likes.count()})
         else:
             comment.likes.add(user)
-            return Response({'detail': 'Comment liked'})
+            return Response({'liked': True, 'likes_count': comment.likes.count()})
 
     @swagger_auto_schema(
         operation_description="Reply to a comment",
