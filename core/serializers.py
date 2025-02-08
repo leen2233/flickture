@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 from authentication.models import User
-from .models import Movie, Genre, MovieCast, Person, Watchlist, Collection, Favorite, Comment
+from .models import Movie, Genre, MovieCast, Person, Watchlist, Collection, Favorite, Comment, List
 
 
 class BaseSerializer(serializers.ModelSerializer):
@@ -210,3 +210,41 @@ class CommentResponseSerializer(BaseSerializer):
         model = Comment
         fields = ['id', 'user', 'content', 'created_at']
         read_only_fields = ['user', 'created_at']
+
+
+class ListMovieSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Movie
+        fields = ['id', 'tmdb_id', 'title', 'year', 'poster_url', 'rating']
+
+
+class ListSerializer(serializers.ModelSerializer):
+    creator = serializers.SerializerMethodField()
+    likes_count = serializers.IntegerField(read_only=True)
+    movies_count = serializers.IntegerField(read_only=True)
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = List
+        fields = [
+            'id', 'name', 'description', 'thumbnail', 'backdrop',
+            'creator', 'likes_count', 'movies_count', 'is_liked',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['creator', 'likes_count', 'movies_count', 'created_at', 'updated_at']
+
+    def get_creator(self, obj):
+        return obj.creator.username
+
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(id=request.user.id).exists()
+        return False
+
+
+class ListDetailSerializer(ListSerializer):
+    movies = ListMovieSerializer(many=True, read_only=True)
+
+    class Meta(ListSerializer.Meta):
+        fields = ListSerializer.Meta.fields + ['movies']

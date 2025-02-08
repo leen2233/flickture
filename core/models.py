@@ -347,3 +347,59 @@ class Comment(models.Model):
             raise models.ValidationError({
                 'rating': 'Rating can only be set for top-level comments'
             })
+
+
+class ListManager(models.Manager):
+    def get_featured_lists(self):
+        """Get trending and staff picks lists"""
+        return self.annotate(
+            likes_count=models.Count('likes'),
+            movies_count=models.Count('movies')
+        ).order_by('-likes_count', '-created_at')
+
+    def get_user_lists(self, user):
+        """Get lists created by a user"""
+        return self.filter(creator=user).annotate(
+            likes_count=models.Count('likes'),
+            movies_count=models.Count('movies')
+        ).order_by('-created_at')
+
+    def get_liked_lists(self, user):
+        """Get lists liked by a user"""
+        return self.filter(likes=user).annotate(
+            likes_count=models.Count('likes'),
+            movies_count=models.Count('movies')
+        ).order_by('-created_at')
+
+    def get_community_lists(self):
+        """Get popular and recent lists from the community"""
+        return self.annotate(
+            likes_count=models.Count('likes'),
+            movies_count=models.Count('movies')
+        ).order_by('-likes_count', '-created_at')
+
+
+class List(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    thumbnail = models.ImageField(upload_to='lists/thumbnails/')
+    backdrop = models.ImageField(upload_to='lists/backdrops/')
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_lists')
+    movies = models.ManyToManyField('Movie', related_name='lists')
+    likes = models.ManyToManyField(User, related_name='liked_lists', blank=True)
+    is_staff_pick = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ListManager()
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['creator']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['is_staff_pick']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} by {self.creator.username}"

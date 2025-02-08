@@ -8,7 +8,7 @@ from core.models import Watchlist, Movie
 from core.serializers import WatchlistSerializer
 
 
-class WatchlistAPIView(generics.ListCreateAPIView, generics.UpdateAPIView):
+class WatchlistAPIView(generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView):
     """
     API view for managing user's watchlist.
     Supports listing all watchlist items and adding/updating movies in watchlist.
@@ -18,6 +18,23 @@ class WatchlistAPIView(generics.ListCreateAPIView, generics.UpdateAPIView):
 
     @swagger_auto_schema(
         operation_description="List all movies in user's watchlist",
+        manual_parameters=[
+            openapi.Parameter(
+                'search',
+                openapi.IN_QUERY,
+                description="Search movies by title",
+                type=openapi.TYPE_STRING,
+                required=False
+            ),
+            openapi.Parameter(
+                'status',
+                openapi.IN_QUERY,
+                description="Filter by status (watchlist/watching/watched)",
+                type=openapi.TYPE_STRING,
+                enum=['watchlist', 'watching', 'watched'],
+                required=False
+            )
+        ],
         responses={
             200: WatchlistSerializer(many=True),
             403: 'Forbidden - Not authenticated'
@@ -95,7 +112,21 @@ class WatchlistAPIView(generics.ListCreateAPIView, generics.UpdateAPIView):
         return super().patch(request, *args, **kwargs)
 
     def get_queryset(self):
-        return Watchlist.objects.filter(user=self.request.user)
+        queryset = Watchlist.objects.filter(user=self.request.user)
+
+        # Get query parameters
+        search_query = self.request.query_params.get('search', None)
+        status_filter = self.request.query_params.get('status', None)
+
+        # Apply search filter on movie titles
+        if search_query:
+            queryset = queryset.filter(movie__title__icontains=search_query)
+
+        # Apply status filter
+        if status_filter and status_filter in ['watchlist', 'watching', 'watched']:
+            queryset = queryset.filter(status=status_filter)
+
+        return queryset
 
     def get_object(self):
         try:
@@ -109,7 +140,7 @@ class WatchlistAPIView(generics.ListCreateAPIView, generics.UpdateAPIView):
 
     def create(self, request, *args, **kwargs):
         try:
-            tmdb_id = kwargs.get('tmdb_id')
+            tmdb_id = request.data.get('tmdb_id')
             if not tmdb_id:
                 return Response(
                     {'detail': 'TMDB ID is required'},
@@ -125,13 +156,9 @@ class WatchlistAPIView(generics.ListCreateAPIView, generics.UpdateAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Add tmdb_id to request data for serializer
-            data = request.data.copy()
-            data['tmdb_id'] = str(tmdb_id)
-
-            serializer = self.get_serializer(data=data)
+            serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save(user=request.user, movie=movie)
+            serializer.save(user=request.user)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 

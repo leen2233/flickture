@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.models import Movie, Person, Genre, Watchlist, Collection, Comment
+from core.models import List, Movie, Person, Genre, Watchlist, Collection, Comment
 
 # Register your models here.
 admin.site.register(Movie)
@@ -9,3 +9,4 @@ admin.site.register(Genre)
 admin.site.register(Watchlist)
 admin.site.register(Collection)
 admin.site.register(Comment)
+admin.site.register(List)
