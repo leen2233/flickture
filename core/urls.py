@@ -9,7 +9,7 @@ from .views import (
 # ViewSet router
 router = DefaultRouter()
 router.register(
-    'movies/(?P<movie_id>\\d+)/comments/',
+    'movies/(?P<movie_id>\\d+)/comments',
     MovieCommentsViewSet,
     basename='movie-comments'
 )
