@@ -36,6 +36,8 @@ class MovieSearchView(generics.ListAPIView):
     """Search movies in local database by title."""
     serializer_class = MovieSerializer
     pagination_class = StandardResultsSetPagination
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     @swagger_auto_schema(
         operation_description="Search for movies in the local database by title",
@@ -67,6 +69,8 @@ class MovieSearchWidelyView(generics.ListAPIView):
     """Search movies using TMDB API and store results locally."""
     serializer_class = MovieSerializer
     pagination_class = StandardResultsSetPagination
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     @swagger_auto_schema(
         operation_description="Search for movies using TMDB API (wider search scope)",
@@ -202,6 +206,8 @@ class MovieDiscoverView(generics.ListAPIView):
     """Discover movies through different categories."""
     serializer_class = MovieListSerializer
     pagination_class = StandardResultsSetPagination
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     @swagger_auto_schema(
         operation_description="Discover movies by category",

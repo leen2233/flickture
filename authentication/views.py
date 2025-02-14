@@ -6,6 +6,63 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import SignUpSerializer, UserProfileSerializer
+from django.contrib.auth import authenticate
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @swagger_auto_schema(
+        operation_description="Login with username/email and password",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['login', 'password'],
+            properties={
+                'login': openapi.Schema(type=openapi.TYPE_STRING, description='Username or email'),
+                'password': openapi.Schema(type=openapi.TYPE_STRING, format='password', description='Password'),
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="Successfully logged in",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'token': openapi.Schema(type=openapi.TYPE_STRING, description='Authentication token'),
+                    }
+                )
+            ),
+            401: 'Unauthorized - Invalid credentials'
+        }
+    )
+    def post(self, request):
+        login = request.data.get('login')
+        password = request.data.get('password')
+
+        if not login or not password:
+            return Response({'error': 'Please provide both login and password'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to authenticate with username
+        user = authenticate(username=login, password=password)
+
+        # If username authentication fails, try email
+        if not user:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                username = User.objects.get(email=login).username
+                user = authenticate(username=username, password=password)
+            except User.DoesNotExist:
+                pass
+
+        if not user:
+            return Response({'error': 'Invalid credentials'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({'token': token.key})
 
 
 class SignUpView(APIView):

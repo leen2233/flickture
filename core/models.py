@@ -7,13 +7,32 @@ from authentication.models import User
 class PersonManager(models.Manager):
     def create_or_update_from_tmdb(self, person_data):
         """Create or update person from TMDB data"""
-        person, _ = self.get_or_create(
+        person, created = self.get_or_create(
             tmdb_id=person_data['id'],
             defaults={
                 'name': person_data['name'],
-                'profile_path': f"https://image.tmdb.org/t/p/original{person_data['profile_path']}" if person_data.get('profile_path') else None
+                'profile_path': person_data.get('profile_path'),
+                'biography': person_data.get('biography'),
+                'birthday': person_data.get('birthday'),
+                'deathday': person_data.get('deathday'),
+                'place_of_birth': person_data.get('place_of_birth'),
+                'popularity': person_data.get('popularity', 0),
+                'known_for_department': person_data.get('known_for_department'),
             }
         )
+
+        if not created:
+            # Update existing person with new data
+            person.name = person_data['name']
+            person.profile_path = person_data.get('profile_path')
+            person.biography = person_data.get('biography')
+            person.birthday = person_data.get('birthday')
+            person.deathday = person_data.get('deathday')
+            person.place_of_birth = person_data.get('place_of_birth')
+            person.popularity = person_data.get('popularity', 0)
+            person.known_for_department = person_data.get('known_for_department')
+            person.save()
+
         return person
 
 
@@ -21,18 +40,32 @@ class Person(models.Model):
     tmdb_id = models.IntegerField(unique=True)
     name = models.CharField(max_length=255)
     profile_path = models.URLField(max_length=500, null=True, blank=True)
+    biography = models.TextField(null=True, blank=True)
+    birthday = models.DateField(null=True, blank=True)
+    deathday = models.DateField(null=True, blank=True)
+    place_of_birth = models.CharField(max_length=255, null=True, blank=True)
+    popularity = models.FloatField(default=0)
+    known_for_department = models.CharField(max_length=50, null=True, blank=True)
+    followers = models.ManyToManyField(User, through='PersonFollower', related_name='followed_persons')
 
     objects = PersonManager()
 
     class Meta:
-        ordering = ['name']
+        ordering = ['-popularity', 'name']
         indexes = [
             models.Index(fields=['tmdb_id']),
             models.Index(fields=['name']),
+            models.Index(fields=['popularity']),
         ]
 
     def __str__(self):
         return self.name
+
+    @property
+    def full_profile_path(self):
+        if self.profile_path:
+            return f"https://image.tmdb.org/t/p/original{self.profile_path}"
+        return None
 
 
 class MovieManager(models.Manager):
@@ -403,3 +436,19 @@ class List(models.Model):
 
     def __str__(self):
         return f"{self.name} by {self.creator.username}"
+
+
+class PersonFollower(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    person = models.ForeignKey(Person, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'person')
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['person']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} follows {self.person.name}"

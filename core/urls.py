@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     MovieSearchView, MovieSearchWidelyView, MovieDetailView, CastListAPIView,
     PersonDetailView, PersonFilmographyListView, WatchlistAPIView, MovieDiscoverView,
-    WatchlistMoviesView, FavoriteAPIView, MovieCommentsViewSet, ListViewSet
+    WatchlistMoviesView, FavoriteAPIView, MovieCommentsViewSet, ListViewSet, PersonFollowView
 )
 
 # ViewSet router
@@ -25,8 +25,9 @@ urlpatterns = [
     path('movies/<str:tmdb_id>/cast/', CastListAPIView.as_view(), name='movie-cast'),
 
     # Person endpoints
-    path('persons/<str:person_id>/', PersonDetailView.as_view(), name='person-detail'),
-    path('persons/<str:person_id>/filmography/', PersonFilmographyListView.as_view(), name='person-filmography'),
+    path('persons/<str:tmdb_id>/', PersonDetailView.as_view(), name='person-detail'),
+    path('persons/<str:tmdb_id>/filmography/', PersonFilmographyListView.as_view(), name='person-filmography'),
+    path('persons/<str:tmdb_id>/follow/', PersonFollowView.as_view(), name='person-follow'),
 
     # User collection endpoints
     path('watchlist/', WatchlistAPIView.as_view(), name='watchlist-list'),

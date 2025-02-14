@@ -18,9 +18,14 @@ class GenreSerializer(serializers.ModelSerializer):
 
 
 class PersonSerializer(serializers.ModelSerializer):
+    profile_path = serializers.SerializerMethodField()
+
     class Meta:
         model = Person
-        fields = ['id', 'tmdb_id', 'name', 'profile_path']
+        fields = "__all__"
+
+    def get_profile_path(self, obj):
+        return obj.full_profile_path
 
 
 class MovieListSerializer(serializers.ModelSerializer):
