@@ -75,13 +75,18 @@ class MovieCastSerializer(serializers.ModelSerializer):
 
 class CollectionSerializer(serializers.ModelSerializer):
     movies_count = serializers.SerializerMethodField()
+    movies = MovieListSerializer(many=True, read_only=True)
 
     class Meta:
         model = Collection
-        fields = ['id', 'tmdb_id', 'name', 'overview', 'poster_url', 'backdrop_url', 'movies_count']
+        fields = ['id', 'tmdb_id', 'name', 'overview', 'poster_url', 'backdrop_url', 'movies_count', 'movies']
 
     def get_movies_count(self, obj):
         return obj.movies.count()
+
+    def get_movies(self, obj):
+        movies = obj.movies.all().order_by('-year')
+        return MovieListSerializer(movies, many=True, context=self.context).data
 
 
 class MovieDetailSerializer(MovieSerializer):
@@ -116,10 +121,8 @@ class MovieDetailSerializer(MovieSerializer):
         return None
 
     def get_collection(self, obj):
-        print("collection", obj.collection)
         if obj.collection:
-            preview_movies = obj.collection.movies.exclude(id=obj.id).order_by('-year')
-            return MovieListSerializer(preview_movies, many=True, context=self.context).data
+            return CollectionSerializer(obj.collection, context=self.context).data
         return None
 
     def get_comment_count(self, obj):

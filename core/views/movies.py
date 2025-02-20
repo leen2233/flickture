@@ -1,3 +1,4 @@
+import pprint
 import requests
 from rest_framework import generics, viewsets, status
 from rest_framework.response import Response
@@ -13,6 +14,7 @@ from django.views.decorators.cache import cache_page
 from datetime import datetime, timedelta
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+import logging
 
 from core.models import Favorite, Movie, Genre, MovieCast, Person, Collection, Watchlist, Comment
 from core.serializers import (
@@ -23,6 +25,9 @@ from core.utils.tmdb import TMDBClient
 
 # Initialize TMDB client
 tmdb_client = TMDBClient(api_key=settings.TMDB_API_KEY)
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -60,8 +65,11 @@ class MovieSearchView(generics.ListAPIView):
 
     def get_queryset(self):
         query = self.request.query_params.get('query')
+        logger.debug(f"MovieSearchView: Searching for query: {query}")
         if not query:
+            logger.info("MovieSearchView: No query provided, returning empty queryset")
             return Movie.objects.none()
+        logger.info(f"MovieSearchView: Searching database for movies with title containing: {query}")
         return Movie.objects.filter(title__icontains=query)
 
 
@@ -93,26 +101,35 @@ class MovieSearchWidelyView(generics.ListAPIView):
 
     def get_queryset(self):
         query = self.request.query_params.get('query')
+        logger.debug(f"MovieSearchWidelyView: Received search query: {query}")
+
         if not query:
+            logger.warning("MovieSearchWidelyView: No query provided")
             raise ValidationError({'query': 'Search query is required'})
 
         cache_key = f'movie_search_{query}'
         cached_results = cache.get(cache_key)
+
         if cached_results is not None:
+            logger.info(f"MovieSearchWidelyView: Returning cached results for query: {query}")
             return cached_results
 
         try:
+            logger.info(f"MovieSearchWidelyView: Fetching results from TMDB for query: {query}")
             results = tmdb_client.search_movies(query)
             movies = []
 
             for result in results:
+                logger.debug(f"MovieSearchWidelyView: Processing TMDB movie result: {result.get('title', 'Unknown')}")
                 movie = Movie.objects.create_or_update_from_tmdb(result)
                 movies.append(movie)
 
-            cache.set(cache_key, movies, timeout=3600)  # Cache for 1 hour
+            logger.info(f"MovieSearchWidelyView: Caching {len(movies)} results for query: {query}")
+            cache.set(cache_key, movies, timeout=3600)
             return movies
 
         except Exception as e:
+            logger.error(f"MovieSearchWidelyView: Error searching movies: {str(e)}", exc_info=True)
             raise ValidationError({'detail': f'Failed to search movies: {str(e)}'})
 
 
@@ -125,9 +142,12 @@ class MovieDetailView(generics.RetrieveAPIView):
 
     def get_object(self):
         try:
-            movie = Movie.objects.get(tmdb_id=self.kwargs['tmdb_id'])
+            tmdb_id = self.kwargs['tmdb_id']
+            logger.debug(f"MovieDetailView: Fetching movie with TMDB ID: {tmdb_id}")
+            movie = Movie.objects.get(tmdb_id=tmdb_id)
             return movie
         except Movie.DoesNotExist:
+            logger.warning(f"MovieDetailView: Movie not found with TMDB ID: {tmdb_id}")
             raise NotFound('Movie not found')
 
     @swagger_auto_schema(
@@ -141,27 +161,30 @@ class MovieDetailView(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         try:
             movie = self.get_object()
+            logger.debug(f"MovieDetailView: Retrieved movie: {movie.title}")
 
-            # Fetch additional details if needed
             if self._should_fetch_details(movie):
+                logger.info(f"MovieDetailView: Fetching additional details for movie: {movie.title}")
                 movie = self._fetch_movie_details(movie)
 
-            if not movie.cast.exists():
+            if not movie.cast.exists() or movie.cast.count() < 10:
+                logger.info(f"MovieDetailView: Fetching credits for movie: {movie.title}")
                 self._fetch_movie_credits(movie)
 
             serializer = self.get_serializer(movie)
             return Response(serializer.data)
 
         except NotFound as e:
+            logger.warning(f"MovieDetailView: {str(e)}")
             return Response(
                 {'detail': str(e)},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            print(f"Error in MovieDetailView: {str(e)}")
+            logger.error(f"MovieDetailView: Unexpected error: {str(e)}", exc_info=True)
             return Response(
                 {'detail': 'Failed to fetch movie details'},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def _should_fetch_details(self, movie):
@@ -170,36 +193,67 @@ class MovieDetailView(generics.RetrieveAPIView):
 
     def _fetch_movie_details(self, movie):
         """Fetch and update movie details from TMDB"""
-        movie_info = tmdb_client.get_movie_details(movie.tmdb_id)
-        movie = Movie.objects.update_from_tmdb_details(movie, movie_info)
+        logger.debug(f"MovieDetailView: Fetching TMDB details for movie: {movie.title}")
+        try:
+            movie_info = tmdb_client.get_movie_details(movie.tmdb_id)
+            movie = Movie.objects.update_from_tmdb_details(movie, movie_info)
 
-        if movie_info.get('belongs_to_collection'):
-            collection = Collection.objects.create_or_update_from_tmdb(
-                movie_info['belongs_to_collection']['id']
-            )
-            movie.collection = collection
-            movie.save()
+            if movie_info.get('belongs_to_collection'):
+                collection_id = movie_info['belongs_to_collection']['id']
+                logger.info(f"MovieDetailView: Fetching collection {collection_id} for movie: {movie.title}")
+                collection = self._fetch_collection_details(collection_id)
+                movie.collection = collection
+                movie.save()
 
-        return movie
+            return movie
+        except Exception as e:
+            logger.error(f"MovieDetailView: Error fetching movie details: {str(e)}", exc_info=True)
+            raise
 
     def _fetch_movie_credits(self, movie):
         """Fetch and update movie credits from TMDB"""
-        credits = tmdb_client.get_movie_credits(movie.tmdb_id)
+        logger.debug(f"MovieDetailView: Fetching credits for movie: {movie.title}")
+        try:
+            credits = tmdb_client.get_movie_credits(movie.tmdb_id)
 
-        # Update cast
-        for cast_member in credits.get('cast', [])[:10]:
-            person = Person.objects.create_or_update_from_tmdb(cast_member)
-            MovieCast.objects.get_or_create(
-                movie=movie,
-                person=person,
-                defaults={'character': cast_member.get('character')}
-            )
+            # Update cast
+            for cast_member in credits.get('cast', [])[:10]:
+                logger.debug(f"MovieDetailView: Processing cast member: {cast_member.get('name')}")
+                person = Person.objects.create_or_update_from_tmdb(cast_member)
+                MovieCast.objects.get_or_create(
+                    movie=movie,
+                    person=person,
+                    defaults={'character': cast_member.get('character')}
+                )
 
-        # Update directors
-        for crew_member in credits.get('crew', []):
-            if crew_member['job'] == 'Director':
-                person = Person.objects.create_or_update_from_tmdb(crew_member)
-                movie.directors.add(person)
+            # Update directors
+            for crew_member in credits.get('crew', []):
+                if crew_member['job'] == 'Director':
+                    logger.debug(f"MovieDetailView: Processing director: {crew_member.get('name')}")
+                    person = Person.objects.create_or_update_from_tmdb(crew_member)
+                    movie.directors.add(person)
+
+        except Exception as e:
+            logger.error(f"MovieDetailView: Error fetching movie credits: {str(e)}", exc_info=True)
+            raise
+
+    def _fetch_collection_details(self, collection_id):
+        """Fetch collection details"""
+        logger.debug(f"MovieDetailView: Fetching collection details for ID: {collection_id}")
+        try:
+            collection_data = tmdb_client.get_collection_details(collection_id)
+            collection = Collection.objects.create_or_update_from_tmdb(collection_data)
+
+            logger.debug(f"MovieDetailView: Processing {len(collection_data.get('parts', []))} movies in collection")
+            for movie_data in collection_data.get('parts', []):
+                movie = Movie.objects.create_or_update_from_tmdb(movie_data)
+                movie.collection = collection
+                movie.save()
+
+            return collection
+        except Exception as e:
+            logger.error(f"MovieDetailView: Error fetching collection details: {str(e)}", exc_info=True)
+            raise
 
 
 class MovieDiscoverView(generics.ListAPIView):
@@ -238,29 +292,32 @@ class MovieDiscoverView(generics.ListAPIView):
         category = request.query_params.get('category', 'popular')
         page = request.query_params.get('page', '1')
 
+        logger.debug(f"MovieDiscoverView: Fetching {category} movies, page {page}")
+
         try:
             page = int(page)
             if page < 1:
+                logger.warning(f"MovieDiscoverView: Invalid page number {page}, defaulting to 1")
                 page = 1
         except ValueError:
+            logger.warning(f"MovieDiscoverView: Invalid page value {page}, defaulting to 1")
             page = 1
 
-        # Default to 'popular' for invalid categories
         if category not in ['popular', 'now_playing', 'top_rated']:
+            logger.warning(f"MovieDiscoverView: Invalid category {category}, defaulting to 'popular'")
             category = 'popular'
 
         try:
             movies = self._get_movies_by_category(category, page)
             serializer = self.get_serializer(movies, many=True)
+            logger.info(f"MovieDiscoverView: Successfully fetched {len(movies)} {category} movies")
             return Response({
                 'results': serializer.data,
                 'category': category,
                 'page': page
             })
         except Exception as e:
-            # Log the error for debugging
-            print(f"Error in MovieDiscoverView: {str(e)}")
-            # Default to empty results instead of error
+            logger.error(f"MovieDiscoverView: Error fetching movies: {str(e)}", exc_info=True)
             return Response({
                 'results': [],
                 'category': category,
@@ -269,6 +326,7 @@ class MovieDiscoverView(generics.ListAPIView):
 
     def _get_movies_by_category(self, category, page=1):
         """Get movies based on category"""
+        logger.debug(f"MovieDiscoverView: Fetching {category} movies from TMDB, page {page}")
         try:
             if category == 'popular':
                 results = tmdb_client.get_popular_movies(page)
@@ -279,13 +337,13 @@ class MovieDiscoverView(generics.ListAPIView):
 
             movies = []
             for result in results:
+                logger.debug(f"MovieDiscoverView: Processing movie: {result.get('title', 'Unknown')}")
                 movie = Movie.objects.create_or_update_from_tmdb(result)
                 movies.append(movie)
 
             return movies
         except Exception as e:
-            # Log the error for debugging
-            print(f"Error in _get_movies_by_category: {str(e)}")
+            logger.error(f"MovieDiscoverView: Error in _get_movies_by_category: {str(e)}", exc_info=True)
             raise
 
 
@@ -400,7 +458,12 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
         security=[{'Token': []}]
     )
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        logger.info(f"MovieCommentsViewSet: Creating new comment for movie {kwargs.get('movie_id')}")
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"MovieCommentsViewSet: Error creating comment: {str(e)}", exc_info=True)
+            raise
 
     @swagger_auto_schema(
         operation_description="Like or unlike a comment",
@@ -413,15 +476,22 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def like(self, request, movie_id=None, pk=None):
+        logger.debug(f"MovieCommentsViewSet: Toggle like for comment {pk}")
         comment = self.get_object()
         user = request.user
 
-        if user in comment.likes.all():
-            comment.likes.remove(user)
-            return Response({'liked': False, 'likes_count': comment.likes.count()})
-        else:
-            comment.likes.add(user)
-            return Response({'liked': True, 'likes_count': comment.likes.count()})
+        try:
+            if user in comment.likes.all():
+                logger.info(f"MovieCommentsViewSet: User {user.id} unliking comment {pk}")
+                comment.likes.remove(user)
+                return Response({'liked': False, 'likes_count': comment.likes.count()})
+            else:
+                logger.info(f"MovieCommentsViewSet: User {user.id} liking comment {pk}")
+                comment.likes.add(user)
+                return Response({'liked': True, 'likes_count': comment.likes.count()})
+        except Exception as e:
+            logger.error(f"MovieCommentsViewSet: Error toggling like: {str(e)}", exc_info=True)
+            raise
 
     @swagger_auto_schema(
         operation_description="Reply to a comment",
@@ -453,3 +523,54 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ContentSearchView(generics.ListAPIView):
+    """Search for movies, TV shows, and people using TMDB API."""
+    serializer_class = MovieSerializer  # We'll need to create a new serializer
+    pagination_class = StandardResultsSetPagination
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @swagger_auto_schema(
+        operation_description="Search for movies, TV shows, and people using TMDB API",
+        manual_parameters=[
+            openapi.Parameter(
+                'query',
+                openapi.IN_QUERY,
+                description="Search term",
+                type=openapi.TYPE_STRING,
+                required=True
+            )
+        ],
+        responses={
+            200: MovieSerializer(many=True),
+            400: 'Bad Request - Missing query parameter'
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        query = request.query_params.get('query')
+        logger.debug(f"ContentSearchView: Received search query: {query}")
+
+        if not query:
+            logger.warning("ContentSearchView: No query provided")
+            raise ValidationError({'query': 'Search query is required'})
+
+        cache_key = f'content_search_{query}'
+        cached_results = cache.get(cache_key)
+
+        if cached_results is not None:
+            logger.info(f"ContentSearchView: Returning cached results for query: {query}")
+            return Response(cached_results)
+
+        try:
+            logger.info(f"ContentSearchView: Fetching results from TMDB for query: {query}")
+            results = tmdb_client.search_multi(query)
+
+            logger.info(f"ContentSearchView: Caching results for query: {query}")
+            cache.set(cache_key, results, timeout=3600)
+            return Response(results)
+
+        except Exception as e:
+            logger.error(f"ContentSearchView: Error searching content: {str(e)}", exc_info=True)
+            raise ValidationError({'detail': f'Failed to search content: {str(e)}'})

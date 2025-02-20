@@ -4,6 +4,9 @@ TMDB API client utility for handling all TMDB API interactions.
 import requests
 from typing import List, Dict, Any, Optional
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TMDBClient:
@@ -190,4 +193,59 @@ class TMDBClient:
             'overview': collection_data.get('overview'),
             'poster_url': self._get_image_url(collection_data.get('poster_path')),
             'backdrop_url': self._get_image_url(collection_data.get('backdrop_path')),
+        }
+
+    def search_multi(self, query: str, page: int = 1) -> List[Dict]:
+        """
+        Search for movies, TV shows, and people.
+
+        Args:
+            query: Search term
+            page: Page number for pagination
+
+        Returns:
+            List of results with type indicators
+        """
+        logger.debug(f"Searching multi content for query: {query}")
+        params = {'query': query, 'page': page}
+        response = self._get('search/multi', params)
+        results = response.get('results', [])
+
+        processed_results = []
+        for item in results:
+            media_type = item.get('media_type')
+
+            if media_type == 'movie':
+                processed_results.append({
+                    **self.process_movie_data(item),
+                    'media_type': 'movie'
+                })
+            elif media_type == 'tv':
+                processed_results.append({
+                    'tmdb_id': item['id'],
+                    'title': item.get('name'),
+                    'original_title': item.get('original_name'),
+                    'media_type': 'tv',
+                    'first_air_date': item.get('first_air_date'),
+                    'year': item.get('first_air_date', '')[:4] if item.get('first_air_date') else None,
+                    'overview': item.get('overview'),
+                    'rating': item.get('vote_average'),
+                    'vote_count': item.get('vote_count'),
+                    'popularity': item.get('popularity'),
+                    'poster_url': self._get_image_url(item.get('poster_path')),
+                    'poster_preview_url': self._get_image_url(item.get('poster_path'), 'w500'),
+                    'backdrop_url': self._get_image_url(item.get('backdrop_path'))
+                })
+            elif media_type == 'person':
+                processed_results.append({
+                    **self.process_person_data(item),
+                    'media_type': 'person',
+                    'known_for_department': item.get('known_for_department'),
+                    'known_for': [self.process_movie_data(m) for m in item.get('known_for', []) if m.get('media_type') == 'movie']
+                })
+
+        return {
+            'results': processed_results,
+            'total_pages': response.get('total_pages', 1),
+            'total_results': response.get('total_results', 0)
         }
