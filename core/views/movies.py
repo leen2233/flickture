@@ -73,82 +73,28 @@ class MovieSearchView(generics.ListAPIView):
         return Movie.objects.filter(title__icontains=query)
 
 
-class MovieSearchWidelyView(generics.ListAPIView):
-    """Search movies using TMDB API and store results locally."""
-    serializer_class = MovieSerializer
-    pagination_class = StandardResultsSetPagination
-    permission_classes = [AllowAny]
-    authentication_classes = []
-
-    @swagger_auto_schema(
-        operation_description="Search for movies using TMDB API (wider search scope)",
-        manual_parameters=[
-            openapi.Parameter(
-                'query',
-                openapi.IN_QUERY,
-                description="Search term for movie title",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ],
-        responses={
-            200: MovieSerializer(many=True),
-            400: 'Bad Request - Missing query parameter'
-        }
-    )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
-    def get_queryset(self):
-        query = self.request.query_params.get('query')
-        logger.debug(f"MovieSearchWidelyView: Received search query: {query}")
-
-        if not query:
-            logger.warning("MovieSearchWidelyView: No query provided")
-            raise ValidationError({'query': 'Search query is required'})
-
-        cache_key = f'movie_search_{query}'
-        cached_results = cache.get(cache_key)
-
-        if cached_results is not None:
-            logger.info(f"MovieSearchWidelyView: Returning cached results for query: {query}")
-            return cached_results
-
-        try:
-            logger.info(f"MovieSearchWidelyView: Fetching results from TMDB for query: {query}")
-            results = tmdb_client.search_movies(query)
-            movies = []
-
-            for result in results:
-                logger.debug(f"MovieSearchWidelyView: Processing TMDB movie result: {result.get('title', 'Unknown')}")
-                movie = Movie.objects.create_or_update_from_tmdb(result)
-                movies.append(movie)
-
-            logger.info(f"MovieSearchWidelyView: Caching {len(movies)} results for query: {query}")
-            cache.set(cache_key, movies, timeout=3600)
-            return movies
-
-        except Exception as e:
-            logger.error(f"MovieSearchWidelyView: Error searching movies: {str(e)}", exc_info=True)
-            raise ValidationError({'detail': f'Failed to search movies: {str(e)}'})
-
-
 class MovieDetailView(generics.RetrieveAPIView):
     """Retrieve detailed movie information."""
     queryset = Movie.objects.all()
     serializer_class = MovieDetailSerializer
     permission_classes = [AllowAny]
-    lookup_field = 'tmdb_id'
 
     def get_object(self):
         try:
             tmdb_id = self.kwargs['tmdb_id']
+            type = self.kwargs['type']
             logger.debug(f"MovieDetailView: Fetching movie with TMDB ID: {tmdb_id}")
-            movie = Movie.objects.get(tmdb_id=tmdb_id)
+            movie = Movie.objects.get(tmdb_id=tmdb_id, type=type)
             return movie
         except Movie.DoesNotExist:
-            logger.warning(f"MovieDetailView: Movie not found with TMDB ID: {tmdb_id}")
-            raise NotFound('Movie not found')
+            logger.info(f"MovieDetailView: Movie not found locally with TMDB ID: {tmdb_id}, fetching from TMDB")
+            try:
+                movie_info = tmdb_client.get_movie_details(tmdb_id)
+                movie = Movie.objects.create_or_update_from_tmdb(movie_info)
+                return movie
+            except Exception as e:
+                logger.error(f"MovieDetailView: Failed to fetch movie from TMDB: {str(e)}", exc_info=True)
+                raise NotFound('Movie not found on TMDB')
 
     @swagger_auto_schema(
         operation_description="Get detailed information about a specific movie",
@@ -525,7 +471,7 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ContentSearchView(generics.ListAPIView):
+class MultiSearchView(generics.ListAPIView):
     """Search for movies, TV shows, and people using TMDB API."""
     serializer_class = MovieSerializer  # We'll need to create a new serializer
     pagination_class = StandardResultsSetPagination

@@ -2,10 +2,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    MovieSearchView, MovieSearchWidelyView, MovieDetailView, CastListAPIView,
+    MovieSearchView, MovieDetailView, CastListAPIView,
     PersonDetailView, PersonFilmographyListView, WatchlistAPIView, MovieDiscoverView,
     WatchlistMoviesView, FavoriteAPIView, MovieCommentsViewSet, ListViewSet, PersonFollowView,
-    ContentSearchView
+    MultiSearchView
 )
 
 # ViewSet router
@@ -21,10 +21,9 @@ router.register(r'lists', ListViewSet, basename='lists')
 urlpatterns = [
     # Movie endpoints
     path('movies/search/', MovieSearchView.as_view(), name='movie-search'),
-    path('movies/search/widely/', MovieSearchWidelyView.as_view(), name='movie-search-widely'),
-    path('movies/search/multi/', ContentSearchView.as_view(), name='movie-search-multi'),
+    path('movies/search/multi/', MultiSearchView.as_view(), name='movie-search-multi'),
     path('movies/discover/', MovieDiscoverView.as_view(), name='movie-discover'),
-    path('movies/<str:tmdb_id>/', MovieDetailView.as_view(), name='movie-detail'),
+    path('movies/<str:tmdb_id>/<str:type>', MovieDetailView.as_view(), name='movie-detail'),
     path('movies/<str:tmdb_id>/cast/', CastListAPIView.as_view(), name='movie-cast'),
 
     # Person endpoints
@@ -38,6 +37,15 @@ urlpatterns = [
     path('watchlist/movies/<str:status>/', WatchlistMoviesView.as_view(), name='watchlist-movies'),
     path('favorites/', FavoriteAPIView.as_view(), name='favorites'),
     path('favorites/<str:tmdb_id>/', FavoriteAPIView.as_view(), name='favorite-detail'),
+
+    # List endpoints
+    path('lists/', ListViewSet.as_view({'get': 'list', 'post': 'create'}), name='list-list'),
+    path('lists/<int:pk>/', ListViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='list-detail'),
 ]
 
 # Include router URLs

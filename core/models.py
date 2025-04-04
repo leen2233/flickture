@@ -73,6 +73,7 @@ class MovieManager(models.Manager):
         """Create or update movie from TMDB data"""
         movie, created = self.get_or_create(
             tmdb_id=movie_data['id'],
+            type=movie_data['type'],
             defaults={
                 'title': movie_data['title'],
                 'plot': movie_data.get('overview'),
@@ -133,7 +134,11 @@ class MovieManager(models.Manager):
 
 
 class Movie(models.Model):
-    tmdb_id = models.IntegerField(unique=True)
+    class Type(models.TextChoices):
+        movie = "movie", "Movie"
+        tv = "tv", "TV"
+
+    tmdb_id = models.IntegerField()
     title = models.CharField(max_length=255)
     plot = models.TextField(blank=True, null=True)
     rating = models.FloatField(null=True, blank=True)
@@ -148,10 +153,12 @@ class Movie(models.Model):
     directors = models.ManyToManyField('Person', related_name='directed_movies')
     genres = models.ManyToManyField('Genre')
     collection = models.ForeignKey('Collection', on_delete=models.SET_NULL, null=True, blank=True, related_name='movies')
+    type = models.CharField(max_length=30, choices=Type.choices)
 
     objects = MovieManager()
 
     class Meta:
+        unique_together = ('tmdb_id', 'type')
         ordering = ['-popularity']
         indexes = [
             models.Index(fields=['tmdb_id']),

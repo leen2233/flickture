@@ -249,3 +249,54 @@ class TMDBClient:
             'total_pages': response.get('total_pages', 1),
             'total_results': response.get('total_results', 0)
         }
+
+    def get_tv_details(self, tv_id: int) -> Dict:
+        """
+        Get detailed information about a specific TV show.
+
+        Args:
+            tv_id: TMDB TV show ID
+
+        Returns:
+            TV show details
+        """
+        return self._get(f'tv/{tv_id}')
+
+    def get_tv_credits(self, tv_id: int) -> Dict:
+        """
+        Get cast and crew information for a TV show.
+
+        Args:
+            tv_id: TMDB TV show ID
+
+        Returns:
+            TV show credits including cast and crew
+        """
+        return self._get(f'tv/{tv_id}/credits')
+
+    def process_tv_data(self, tv_data: Dict) -> Dict:
+        """
+        Process raw TV show data from TMDB API to our format.
+
+        Args:
+            tv_data: Raw TV show data from TMDB
+
+        Returns:
+            Processed TV show data ready for our database
+        """
+        return {
+            'tmdb_id': tv_data['id'],
+            'title': tv_data.get('name'),
+            'original_title': tv_data.get('original_name'),
+            'overview': tv_data.get('overview'),
+            'first_air_date': tv_data.get('first_air_date'),
+            'last_air_date': tv_data.get('last_air_date'),
+            'status': tv_data.get('status'),
+            'number_of_seasons': tv_data.get('number_of_seasons'),
+            'number_of_episodes': tv_data.get('number_of_episodes'),
+            'episode_run_time': tv_data.get('episode_run_time', []),
+            'rating': tv_data.get('vote_average'),
+            'popularity': tv_data.get('popularity', 0),
+            'poster_path': tv_data.get('poster_path'),
+            'backdrop_path': tv_data.get('backdrop_path'),
+        }

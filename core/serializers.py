@@ -44,6 +44,7 @@ class MovieListSerializer(serializers.ModelSerializer):
             "poster_preview_url",
             "genres",
             "is_favorite",
+            "type"
         ]
 
     def get_is_favorite(self, obj):
