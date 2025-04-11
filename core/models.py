@@ -72,16 +72,16 @@ class MovieManager(models.Manager):
     def create_or_update_from_tmdb(self, movie_data):
         """Create or update movie from TMDB data"""
         movie, created = self.get_or_create(
-            tmdb_id=movie_data['id'],
+            tmdb_id=movie_data['tmdb_id'],
             type=movie_data['type'],
             defaults={
                 'title': movie_data['title'],
                 'plot': movie_data.get('overview'),
                 'rating': movie_data.get('vote_average'),
                 'year': movie_data.get('release_date', '')[:4] if movie_data.get('release_date') else None,
-                'poster_url': f"https://image.tmdb.org/t/p/original{movie_data['poster_path']}" if movie_data.get('poster_path') else None,
-                'poster_preview_url': f"https://image.tmdb.org/t/p/w500{movie_data['poster_path']}" if movie_data.get('poster_path') else None,
-                'backdrop_url': f"https://image.tmdb.org/t/p/original{movie_data['backdrop_path']}" if movie_data.get('backdrop_path') else None,
+                'poster_url': movie_data.get("poster_url", None),
+                'poster_preview_url': movie_data.get("poster_preview_url", None),
+                'backdrop_url': movie_data.get("backdrop_url", None),
                 'popularity': movie_data.get('popularity', 0),
                 'vote_count': movie_data.get('vote_count', 0),
                 'runtime': movie_data.get('runtime'),
@@ -111,11 +111,11 @@ class MovieManager(models.Manager):
         movie.popularity = movie_data.get('popularity', 0)
         movie.vote_count = movie_data.get('vote_count', 0)
 
-        if movie_data.get('poster_path'):
-            movie.poster_url = f"https://image.tmdb.org/t/p/original{movie_data['poster_path']}"
-            movie.poster_preview_url = f"https://image.tmdb.org/t/p/w500{movie_data['poster_path']}"
-        if movie_data.get('backdrop_path'):
-            movie.backdrop_url = f"https://image.tmdb.org/t/p/original{movie_data['backdrop_path']}"
+        if movie_data.get('poster_url'):
+            movie.poster_url = movie_data['poster_url']
+            movie.poster_preview_url = movie_data['poster_preview_url']
+        if movie_data.get('backdrop_url'):
+            movie.backdrop_url = movie_data['backdrop_url']
 
         movie.save()
 

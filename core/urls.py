@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    MovieSearchView, MovieDetailView, CastListAPIView,
+    MovieDetailView, CastListAPIView,
     PersonDetailView, PersonFilmographyListView, WatchlistAPIView, MovieDiscoverView,
     WatchlistMoviesView, FavoriteAPIView, MovieCommentsViewSet, ListViewSet, PersonFollowView,
     MultiSearchView
@@ -20,7 +20,6 @@ router.register(r'lists', ListViewSet, basename='lists')
 # API URLs
 urlpatterns = [
     # Movie endpoints
-    path('movies/search/', MovieSearchView.as_view(), name='movie-search'),
     path('movies/search/multi/', MultiSearchView.as_view(), name='movie-search-multi'),
     path('movies/discover/', MovieDiscoverView.as_view(), name='movie-discover'),
     path('movies/<str:tmdb_id>/<str:type>', MovieDetailView.as_view(), name='movie-detail'),

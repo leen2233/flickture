@@ -21,9 +21,8 @@ class TMDBClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.session = requests.Session()
-        self.session.params = {'api_key': api_key}
 
-    def _get(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
+    def _get(self, endpoint: str, params: Dict = {}) -> Dict:
         """
         Make a GET request to the TMDB API.
 
@@ -37,7 +36,12 @@ class TMDBClient:
         Raises:
             requests.exceptions.RequestException: If the request fails
         """
+        print(f"Making GET request to {self.BASE_URL}/{endpoint}")
+        params['api_key'] = self.api_key
+        print(f"Making GET request to {self.BASE_URL}/{endpoint} with params: {params}")
+
         response = self.session.get(f"{self.BASE_URL}/{endpoint}", params=params)
+        print(f"Received response with status code {response.status_code}")
         response.raise_for_status()
         return response.json()
 
@@ -72,7 +76,9 @@ class TMDBClient:
         Returns:
             Movie details
         """
-        return self._get(f'movie/{movie_id}')
+        response = self._get(f'movie/{movie_id}')
+        response = self.process_movie_data(response)
+        return response
 
     def get_movie_credits(self, movie_id: int) -> Dict:
         """
@@ -108,22 +114,45 @@ class TMDBClient:
         Returns:
             Person's movie credits
         """
-        return self._get(f'person/{person_id}/movie_credits')
+        response = self._get(f'person/{person_id}/movie_credits')
+        cast_response = response.get("cast", [])
+        crew_response = response.get("crew", [])
+        processed_cast = []
+        processed_crew = []
+
+        for movie in cast_response:
+            processed_cast.append(self.process_movie_data(movie))
+        for movie in crew_response:
+            processed_crew.append(self.process_movie_data(movie))
+
+        return {"cast": processed_cast, "crew": processed_crew}
 
     def get_popular_movies(self, page: int = 1) -> List[Dict]:
         """Get current popular movies"""
         response = self._get('movie/popular', {'page': page})
-        return response.get('results', [])
+        results = response.get("results", [])
+        processed_results = []
+        for movie in results:
+            processed_results.append(self.process_movie_data(movie))
+        return processed_results
 
     def get_now_playing_movies(self, page: int = 1) -> List[Dict]:
         """Get movies currently in theaters"""
         response = self._get('movie/now_playing', {'page': page})
-        return response.get('results', [])
+        results = response.get("results", [])
+        processed_results = []
+        for movie in results:
+            processed_results.append(self.process_movie_data(movie))
+        return processed_results
 
     def get_top_rated_movies(self, page: int = 1) -> List[Dict]:
         """Get top rated movies"""
         response = self._get('movie/top_rated', {'page': page})
-        return response.get('results', [])
+        results = response.get("results", [])
+        processed_results = []
+        for movie in results:
+            processed_results.append(self.process_movie_data(movie))
+        return processed_results
 
     def get_collection_details(self, collection_id: int) -> Dict:
         """
@@ -156,9 +185,39 @@ class TMDBClient:
             'runtime': movie_data.get('runtime'),
             'popularity': movie_data.get('popularity', 0),
             'vote_count': movie_data.get('vote_count', 0),
-            'poster_url': self._get_image_url(movie_data.get('poster_path')),
-            'poster_preview_url': self._get_image_url(movie_data.get('poster_path'), 'w500'),
-            'backdrop_url': self._get_image_url(movie_data.get('backdrop_path')),
+            'poster_url': self._get_image_url(movie_data.get('poster_path', '')),
+            'poster_preview_url': self._get_image_url(movie_data.get('poster_path', ''), 'w500'),
+            'backdrop_url': self._get_image_url(movie_data.get('backdrop_path', '')),
+            'type': 'movie'
+        }
+
+    def process_tv_data(self, tv_data: Dict) -> Dict:
+        """
+        Process raw TV show data from TMDB API to our format.
+
+        Args:
+            tv_data: Raw TV show data from TMDB
+
+        Returns:
+            Processed TV show data ready for our database
+        """
+        return {
+            'tmdb_id': tv_data['id'],
+            'title': tv_data.get('name'),
+            'original_title': tv_data.get('original_name'),
+            'overview': tv_data.get('overview'),
+            'first_air_date': tv_data.get('first_air_date'),
+            'last_air_date': tv_data.get('last_air_date'),
+            'status': tv_data.get('status'),
+            'number_of_seasons': tv_data.get('number_of_seasons'),
+            'number_of_episodes': tv_data.get('number_of_episodes'),
+            'episode_run_time': tv_data.get('episode_run_time', []),
+            'rating': tv_data.get('vote_average'),
+            'popularity': tv_data.get('popularity', 0),
+            'poster_url': self._get_image_url(tv_data.get('poster_path', '')),
+            'poster_preview_url': self._get_image_url(tv_data.get('poster_path', ''), 'w500'),
+            'backdrop_url': self._get_image_url(tv_data.get('backdrop_path', '')),
+            'type': 'tv'
         }
 
     def process_person_data(self, person_data: Dict) -> Dict:
@@ -195,7 +254,7 @@ class TMDBClient:
             'backdrop_url': self._get_image_url(collection_data.get('backdrop_path')),
         }
 
-    def search_multi(self, query: str, page: int = 1) -> List[Dict]:
+    def search_multi(self, query: str, page: int = 1) -> Dict:
         """
         Search for movies, TV shows, and people.
 
@@ -216,30 +275,13 @@ class TMDBClient:
             media_type = item.get('media_type')
 
             if media_type == 'movie':
-                processed_results.append({
-                    **self.process_movie_data(item),
-                    'media_type': 'movie'
-                })
+                processed_results.append(self.process_movie_data(item))
             elif media_type == 'tv':
-                processed_results.append({
-                    'tmdb_id': item['id'],
-                    'title': item.get('name'),
-                    'original_title': item.get('original_name'),
-                    'media_type': 'tv',
-                    'first_air_date': item.get('first_air_date'),
-                    'year': item.get('first_air_date', '')[:4] if item.get('first_air_date') else None,
-                    'overview': item.get('overview'),
-                    'rating': item.get('vote_average'),
-                    'vote_count': item.get('vote_count'),
-                    'popularity': item.get('popularity'),
-                    'poster_url': self._get_image_url(item.get('poster_path')),
-                    'poster_preview_url': self._get_image_url(item.get('poster_path'), 'w500'),
-                    'backdrop_url': self._get_image_url(item.get('backdrop_path'))
-                })
+                processed_results.append(self.process_tv_data(item))
             elif media_type == 'person':
                 processed_results.append({
                     **self.process_person_data(item),
-                    'media_type': 'person',
+                    'type': 'person',
                     'known_for_department': item.get('known_for_department'),
                     'known_for': [self.process_movie_data(m) for m in item.get('known_for', []) if m.get('media_type') == 'movie']
                 })
@@ -260,7 +302,9 @@ class TMDBClient:
         Returns:
             TV show details
         """
-        return self._get(f'tv/{tv_id}')
+        response = self._get(f'tv/{tv_id}')
+        response = self.process_tv_data(response)
+        return response
 
     def get_tv_credits(self, tv_id: int) -> Dict:
         """
@@ -273,30 +317,3 @@ class TMDBClient:
             TV show credits including cast and crew
         """
         return self._get(f'tv/{tv_id}/credits')
-
-    def process_tv_data(self, tv_data: Dict) -> Dict:
-        """
-        Process raw TV show data from TMDB API to our format.
-
-        Args:
-            tv_data: Raw TV show data from TMDB
-
-        Returns:
-            Processed TV show data ready for our database
-        """
-        return {
-            'tmdb_id': tv_data['id'],
-            'title': tv_data.get('name'),
-            'original_title': tv_data.get('original_name'),
-            'overview': tv_data.get('overview'),
-            'first_air_date': tv_data.get('first_air_date'),
-            'last_air_date': tv_data.get('last_air_date'),
-            'status': tv_data.get('status'),
-            'number_of_seasons': tv_data.get('number_of_seasons'),
-            'number_of_episodes': tv_data.get('number_of_episodes'),
-            'episode_run_time': tv_data.get('episode_run_time', []),
-            'rating': tv_data.get('vote_average'),
-            'popularity': tv_data.get('popularity', 0),
-            'poster_path': tv_data.get('poster_path'),
-            'backdrop_path': tv_data.get('backdrop_path'),
-        }

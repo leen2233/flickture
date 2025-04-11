@@ -37,42 +37,6 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 100
 
 
-class MovieSearchView(generics.ListAPIView):
-    """Search movies in local database by title."""
-    serializer_class = MovieSerializer
-    pagination_class = StandardResultsSetPagination
-    permission_classes = [AllowAny]
-    authentication_classes = []
-
-    @swagger_auto_schema(
-        operation_description="Search for movies in the local database by title",
-        manual_parameters=[
-            openapi.Parameter(
-                'query',
-                openapi.IN_QUERY,
-                description="Search term for movie title",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ],
-        responses={
-            200: MovieSerializer(many=True),
-            400: 'Bad Request - Missing query parameter'
-        }
-    )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
-    def get_queryset(self):
-        query = self.request.query_params.get('query')
-        logger.debug(f"MovieSearchView: Searching for query: {query}")
-        if not query:
-            logger.info("MovieSearchView: No query provided, returning empty queryset")
-            return Movie.objects.none()
-        logger.info(f"MovieSearchView: Searching database for movies with title containing: {query}")
-        return Movie.objects.filter(title__icontains=query)
-
-
 class MovieDetailView(generics.RetrieveAPIView):
     """Retrieve detailed movie information."""
     queryset = Movie.objects.all()
@@ -80,16 +44,23 @@ class MovieDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
 
     def get_object(self):
+        tmdb_id = self.kwargs['tmdb_id']
+        type = self.kwargs['type']
+        print(type)
         try:
-            tmdb_id = self.kwargs['tmdb_id']
-            type = self.kwargs['type']
             logger.debug(f"MovieDetailView: Fetching movie with TMDB ID: {tmdb_id}")
             movie = Movie.objects.get(tmdb_id=tmdb_id, type=type)
             return movie
         except Movie.DoesNotExist:
             logger.info(f"MovieDetailView: Movie not found locally with TMDB ID: {tmdb_id}, fetching from TMDB")
             try:
-                movie_info = tmdb_client.get_movie_details(tmdb_id)
+                movie_info = None
+                if type == "movie":
+                    movie_info = tmdb_client.get_movie_details(tmdb_id)
+                elif type == "tv":
+                    print("DETCHING DETAILS")
+                    movie_info = tmdb_client.get_tv_details(tmdb_id)
+
                 movie = Movie.objects.create_or_update_from_tmdb(movie_info)
                 return movie
             except Exception as e:
@@ -141,7 +112,11 @@ class MovieDetailView(generics.RetrieveAPIView):
         """Fetch and update movie details from TMDB"""
         logger.debug(f"MovieDetailView: Fetching TMDB details for movie: {movie.title}")
         try:
-            movie_info = tmdb_client.get_movie_details(movie.tmdb_id)
+            movie_info = None
+            if movie.type == "movie":
+                movie_info = tmdb_client.get_movie_details(movie.tmdb_id)
+            elif movie.type == "tv":
+                movie_info = tmdb_client.get_tv_details(movie.tmdb_id)
             movie = Movie.objects.update_from_tmdb_details(movie, movie_info)
 
             if movie_info.get('belongs_to_collection'):
@@ -160,7 +135,11 @@ class MovieDetailView(generics.RetrieveAPIView):
         """Fetch and update movie credits from TMDB"""
         logger.debug(f"MovieDetailView: Fetching credits for movie: {movie.title}")
         try:
-            credits = tmdb_client.get_movie_credits(movie.tmdb_id)
+            credits = None
+            if movie.type == "movie":
+                credits = tmdb_client.get_movie_credits(movie.tmdb_id)
+            elif movie.type == "tv":
+                credits = tmdb_client.get_tv_credits(movie.tmdb_id)
 
             # Update cast
             for cast_member in credits.get('cast', [])[:10]:

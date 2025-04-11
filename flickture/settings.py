@@ -35,9 +35,9 @@ CORS_ALLOWED_ORIGINS = [
 SECRET_KEY = 'django-insecure-e1hhxrj%=&19%_%7(u)a^^b!l_$67#bimb0#v%ajkzm$7p#$-!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = json.loads(os.getenv("DEBUG"))
+DEBUG = json.loads(os.getenv("DEBUG", "false"))
 
-ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS"))
+ALLOWED_HOSTS = json.loads(os.getenv("ALLOWED_HOSTS", "[]"))
 
 
 # Application definition

@@ -48,6 +48,23 @@ class PersonDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
     lookup_field = 'tmdb_id'
 
+    def get_object(self):
+        tmdb_id = self.kwargs['tmdb_id']
+        try:
+            logger.debug(f"PersonDetailView: Fetching person with TMDB ID: {tmdb_id}")
+            person = Person.objects.get(tmdb_id=tmdb_id)
+            return person
+        except Person.DoesNotExist:
+            logger.info(f"PersonDetailView: Person not found locally with TMDB ID: {tmdb_id}, fetching from TMDB")
+            try:
+                person_info = tmdb_client.get_person_details(tmdb_id)
+
+                person = Person.objects.create_or_update_from_tmdb(person_info)
+                return person
+            except Exception as e:
+                logger.error(f"PersonDetailView: Failed to fetch person from TMDB: {str(e)}", exc_info=True)
+                raise NotFound('Person not found on TMDB')
+
     @swagger_auto_schema(
         operation_description="Get detailed information about a person, including their filmography",
         responses={
@@ -67,11 +84,6 @@ class PersonDetailView(generics.RetrieveAPIView):
                 logger.info(f"PersonDetailView: Returning cached data for person {person.tmdb_id}")
                 return Response(cached_data)
 
-            # Fetch person details from TMDB
-            logger.info(f"PersonDetailView: Fetching fresh TMDB data for person {person.tmdb_id}")
-            person_data = tmdb_client.get_person_details(person.tmdb_id)
-            person = Person.objects.create_or_update_from_tmdb(person_data)
-
             # Fetch person's movie credits
             logger.debug(f"PersonDetailView: Fetching credits for person {person.tmdb_id}")
             credits_data = tmdb_client.get_person_credits(person.tmdb_id)
@@ -85,7 +97,7 @@ class PersonDetailView(generics.RetrieveAPIView):
                     MovieCast.objects.get_or_create(
                         movie=movie,
                         person=person,
-                        character=movie_data.get('character')
+                        defaults={'character': movie_data.get('character')}
                     )
 
             # Process crew credits (for directors)
