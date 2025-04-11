@@ -95,6 +95,7 @@ class MovieDetailSerializer(MovieSerializer):
     watchlist_status = serializers.SerializerMethodField()
     collection = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
+    cast_count = serializers.SerializerMethodField()
     cast_preview = serializers.SerializerMethodField()
 
     class Meta(MovieSerializer.Meta):
@@ -104,8 +105,13 @@ class MovieDetailSerializer(MovieSerializer):
             "cast_preview",
             "watchlist_status",
             "collection",
-            "comment_count"
+            "comment_count",
+            "cast_count"
         ]
+
+    def get_cast_count(self, obj):
+        print(obj.cast.all())
+        return obj.cast.count()
 
     def get_cast_preview(self, obj):
         cast = obj.cast.all()[:10]

@@ -71,14 +71,15 @@ class Person(models.Model):
 class MovieManager(models.Manager):
     def create_or_update_from_tmdb(self, movie_data):
         """Create or update movie from TMDB data"""
+
         movie, created = self.get_or_create(
             tmdb_id=movie_data['tmdb_id'],
             type=movie_data['type'],
             defaults={
                 'title': movie_data['title'],
                 'plot': movie_data.get('overview'),
-                'rating': movie_data.get('vote_average'),
-                'year': movie_data.get('release_date', '')[:4] if movie_data.get('release_date') else None,
+                'rating': movie_data.get('rating'),
+                'year': int(movie_data.get('year')) if movie_data.get('year') else None,
                 'poster_url': movie_data.get("poster_url", None),
                 'poster_preview_url': movie_data.get("poster_preview_url", None),
                 'backdrop_url': movie_data.get("backdrop_url", None),
@@ -105,8 +106,8 @@ class MovieManager(models.Manager):
         """Update existing movie with detailed TMDB data"""
         movie.title = movie_data['title']
         movie.plot = movie_data.get('overview')
-        movie.rating = movie_data.get('vote_average')
-        movie.year = movie_data.get('release_date', '')[:4] if movie_data.get('release_date') else None
+        movie.rating = movie_data.get('rating')
+        movie.year = int(movie_data.get('year')) if movie_data.get('year') else None
         movie.runtime = movie_data.get('runtime')
         movie.popularity = movie_data.get('popularity', 0)
         movie.vote_count = movie_data.get('vote_count', 0)

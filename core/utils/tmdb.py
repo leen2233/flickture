@@ -5,6 +5,7 @@ import requests
 from typing import List, Dict, Any, Optional
 from django.conf import settings
 import logging
+import pprint
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,7 @@ class TMDBClient:
             'poster_url': self._get_image_url(movie_data.get('poster_path', '')),
             'poster_preview_url': self._get_image_url(movie_data.get('poster_path', ''), 'w500'),
             'backdrop_url': self._get_image_url(movie_data.get('backdrop_path', '')),
+            'genres': movie_data.get('genres', []),
             'type': 'movie'
         }
 
@@ -201,22 +203,24 @@ class TMDBClient:
         Returns:
             Processed TV show data ready for our database
         """
+
         return {
             'tmdb_id': tv_data['id'],
             'title': tv_data.get('name'),
             'original_title': tv_data.get('original_name'),
             'overview': tv_data.get('overview'),
-            'first_air_date': tv_data.get('first_air_date'),
-            'last_air_date': tv_data.get('last_air_date'),
+            'year': tv_data.get('first_air_date', '')[:4] if tv_data.get('first_air_date') else None,
             'status': tv_data.get('status'),
             'number_of_seasons': tv_data.get('number_of_seasons'),
             'number_of_episodes': tv_data.get('number_of_episodes'),
             'episode_run_time': tv_data.get('episode_run_time', []),
             'rating': tv_data.get('vote_average'),
             'popularity': tv_data.get('popularity', 0),
+            'vote_count': tv_data.get('vote_count', 0),
             'poster_url': self._get_image_url(tv_data.get('poster_path', '')),
             'poster_preview_url': self._get_image_url(tv_data.get('poster_path', ''), 'w500'),
             'backdrop_url': self._get_image_url(tv_data.get('backdrop_path', '')),
+            'genres': tv_data.get('genres', []),
             'type': 'tv'
         }
 

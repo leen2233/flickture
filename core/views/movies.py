@@ -46,7 +46,6 @@ class MovieDetailView(generics.RetrieveAPIView):
     def get_object(self):
         tmdb_id = self.kwargs['tmdb_id']
         type = self.kwargs['type']
-        print(type)
         try:
             logger.debug(f"MovieDetailView: Fetching movie with TMDB ID: {tmdb_id}")
             movie = Movie.objects.get(tmdb_id=tmdb_id, type=type)
@@ -58,7 +57,6 @@ class MovieDetailView(generics.RetrieveAPIView):
                 if type == "movie":
                     movie_info = tmdb_client.get_movie_details(tmdb_id)
                 elif type == "tv":
-                    print("DETCHING DETAILS")
                     movie_info = tmdb_client.get_tv_details(tmdb_id)
 
                 movie = Movie.objects.create_or_update_from_tmdb(movie_info)
@@ -141,8 +139,10 @@ class MovieDetailView(generics.RetrieveAPIView):
             elif movie.type == "tv":
                 credits = tmdb_client.get_tv_credits(movie.tmdb_id)
 
+            pprint.pprint(credits.get("cast", [])[:25])
+            print(len(credits.get("cast", [])))
             # Update cast
-            for cast_member in credits.get('cast', [])[:10]:
+            for cast_member in credits.get('cast', [])[:25]:
                 logger.debug(f"MovieDetailView: Processing cast member: {cast_member.get('name')}")
                 person = Person.objects.create_or_update_from_tmdb(cast_member)
                 MovieCast.objects.get_or_create(
@@ -333,13 +333,15 @@ class WatchlistMoviesView(generics.ListAPIView):
 class MovieCommentsViewSet(viewsets.ModelViewSet):
     """ViewSet for handling movie comments."""
     serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         movie_id = self.kwargs.get('movie_id')
+        type = self.kwargs.get('type')
         return Comment.objects.filter(
             movie__tmdb_id=movie_id,
+            movie__type=type,
             parent__isnull=True
         ).prefetch_related(
             'user',
@@ -383,6 +385,8 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
         security=[{'Token': []}]
     )
     def create(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
         logger.info(f"MovieCommentsViewSet: Creating new comment for movie {kwargs.get('movie_id')}")
         try:
             return super().create(request, *args, **kwargs)
@@ -401,6 +405,8 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def like(self, request, movie_id=None, pk=None):
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
         logger.debug(f"MovieCommentsViewSet: Toggle like for comment {pk}")
         comment = self.get_object()
         user = request.user
@@ -437,6 +443,8 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def reply(self, request, movie_id=None, pk=None):
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
         parent_comment = self.get_object()
         serializer = self.get_serializer(data=request.data)
 
