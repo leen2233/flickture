@@ -1,6 +1,6 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.core.cache import cache
+
 from authentication.models import User
 
 
@@ -8,29 +8,29 @@ class PersonManager(models.Manager):
     def create_or_update_from_tmdb(self, person_data):
         """Create or update person from TMDB data"""
         person, created = self.get_or_create(
-            tmdb_id=person_data['id'],
+            tmdb_id=person_data["id"],
             defaults={
-                'name': person_data['name'],
-                'profile_path': person_data.get('profile_path'),
-                'biography': person_data.get('biography'),
-                'birthday': person_data.get('birthday'),
-                'deathday': person_data.get('deathday'),
-                'place_of_birth': person_data.get('place_of_birth'),
-                'popularity': person_data.get('popularity', 0),
-                'known_for_department': person_data.get('known_for_department'),
-            }
+                "name": person_data["name"],
+                "profile_path": person_data.get("profile_path"),
+                "biography": person_data.get("biography"),
+                "birthday": person_data.get("birthday"),
+                "deathday": person_data.get("deathday"),
+                "place_of_birth": person_data.get("place_of_birth"),
+                "popularity": person_data.get("popularity", 0),
+                "known_for_department": person_data.get("known_for_department"),
+            },
         )
 
         if not created:
             # Update existing person with new data
-            person.name = person_data['name']
-            person.profile_path = person_data.get('profile_path')
-            person.biography = person_data.get('biography')
-            person.birthday = person_data.get('birthday')
-            person.deathday = person_data.get('deathday')
-            person.place_of_birth = person_data.get('place_of_birth')
-            person.popularity = person_data.get('popularity', 0)
-            person.known_for_department = person_data.get('known_for_department')
+            person.name = person_data["name"]
+            person.profile_path = person_data.get("profile_path")
+            person.biography = person_data.get("biography")
+            person.birthday = person_data.get("birthday")
+            person.deathday = person_data.get("deathday")
+            person.place_of_birth = person_data.get("place_of_birth")
+            person.popularity = person_data.get("popularity", 0)
+            person.known_for_department = person_data.get("known_for_department")
             person.save()
 
         return person
@@ -46,16 +46,16 @@ class Person(models.Model):
     place_of_birth = models.CharField(max_length=255, null=True, blank=True)
     popularity = models.FloatField(default=0)
     known_for_department = models.CharField(max_length=50, null=True, blank=True)
-    followers = models.ManyToManyField(User, through='PersonFollower', related_name='followed_persons')
+    followers = models.ManyToManyField(User, through="PersonFollower", related_name="followed_persons")
 
     objects = PersonManager()
 
     class Meta:
-        ordering = ['-popularity', 'name']
+        ordering = ["-popularity", "name"]
         indexes = [
-            models.Index(fields=['tmdb_id']),
-            models.Index(fields=['name']),
-            models.Index(fields=['popularity']),
+            models.Index(fields=["tmdb_id"]),
+            models.Index(fields=["name"]),
+            models.Index(fields=["popularity"]),
         ]
 
     def __str__(self):
@@ -73,30 +73,29 @@ class MovieManager(models.Manager):
         """Create or update movie from TMDB data"""
 
         movie, created = self.get_or_create(
-            tmdb_id=movie_data['tmdb_id'],
-            type=movie_data['type'],
+            tmdb_id=movie_data["tmdb_id"],
+            type=movie_data["type"],
             defaults={
-                'title': movie_data['title'],
-                'plot': movie_data.get('overview'),
-                'rating': movie_data.get('rating'),
-                'year': int(movie_data.get('year')) if movie_data.get('year') else None,
-                'poster_url': movie_data.get("poster_url", None),
-                'poster_preview_url': movie_data.get("poster_preview_url", None),
-                'backdrop_url': movie_data.get("backdrop_url", None),
-                'popularity': movie_data.get('popularity', 0),
-                'vote_count': movie_data.get('vote_count', 0),
-                'runtime': movie_data.get('runtime'),
-            }
+                "title": movie_data["title"],
+                "plot": movie_data.get("overview"),
+                "rating": movie_data.get("rating"),
+                "year": int(movie_data.get("year")) if movie_data.get("year") else None,
+                "poster_url": movie_data.get("poster_url", None),
+                "poster_preview_url": movie_data.get("poster_preview_url", None),
+                "backdrop_url": movie_data.get("backdrop_url", None),
+                "popularity": movie_data.get("popularity", 0),
+                "vote_count": movie_data.get("vote_count", 0),
+                "runtime": movie_data.get("runtime"),
+                "season_number": movie_data.get("season_number"),
+                "episode_number": movie_data.get("episode_number"),
+            },
         )
 
         # Update genres if provided
-        if movie_data.get('genres'):
+        if movie_data.get("genres"):
             genres = []
-            for genre_data in movie_data['genres']:
-                genre, _ = Genre.objects.get_or_create(
-                    tmdb_id=genre_data['id'],
-                    defaults={'name': genre_data['name']}
-                )
+            for genre_data in movie_data["genres"]:
+                genre, _ = Genre.objects.get_or_create(tmdb_id=genre_data["id"], defaults={"name": genre_data["name"]})
                 genres.append(genre)
             movie.genres.set(genres)
 
@@ -104,30 +103,29 @@ class MovieManager(models.Manager):
 
     def update_from_tmdb_details(self, movie, movie_data):
         """Update existing movie with detailed TMDB data"""
-        movie.title = movie_data['title']
-        movie.plot = movie_data.get('overview')
-        movie.rating = movie_data.get('rating')
-        movie.year = int(movie_data.get('year')) if movie_data.get('year') else None
-        movie.runtime = movie_data.get('runtime')
-        movie.popularity = movie_data.get('popularity', 0)
-        movie.vote_count = movie_data.get('vote_count', 0)
+        movie.title = movie_data["title"]
+        movie.plot = movie_data.get("overview")
+        movie.rating = movie_data.get("rating")
+        movie.year = int(movie_data.get("year")) if movie_data.get("year") else None
+        movie.runtime = movie_data.get("runtime")
+        movie.popularity = movie_data.get("popularity", 0)
+        movie.vote_count = movie_data.get("vote_count", 0)
+        movie.season_number = movie_data.get("season_number")
+        movie.episode_number = movie_data.get("episode_number")
 
-        if movie_data.get('poster_url'):
-            movie.poster_url = movie_data['poster_url']
-            movie.poster_preview_url = movie_data['poster_preview_url']
-        if movie_data.get('backdrop_url'):
-            movie.backdrop_url = movie_data['backdrop_url']
+        if movie_data.get("poster_url"):
+            movie.poster_url = movie_data["poster_url"]
+            movie.poster_preview_url = movie_data["poster_preview_url"]
+        if movie_data.get("backdrop_url"):
+            movie.backdrop_url = movie_data["backdrop_url"]
 
         movie.save()
 
         # Update genres
-        if movie_data.get('genres'):
+        if movie_data.get("genres"):
             genres = []
-            for genre_data in movie_data['genres']:
-                genre, _ = Genre.objects.get_or_create(
-                    tmdb_id=genre_data['id'],
-                    defaults={'name': genre_data['name']}
-                )
+            for genre_data in movie_data["genres"]:
+                genre, _ = Genre.objects.get_or_create(tmdb_id=genre_data["id"], defaults={"name": genre_data["name"]})
                 genres.append(genre)
             movie.genres.set(genres)
 
@@ -150,23 +148,26 @@ class Movie(models.Model):
     popularity = models.FloatField(default=0)
     vote_count = models.IntegerField(default=0)
     runtime = models.IntegerField(null=True, blank=True)
-    kind = models.CharField(max_length=50, blank=True, null=True)
-    directors = models.ManyToManyField('Person', related_name='directed_movies')
-    genres = models.ManyToManyField('Genre')
-    collection = models.ForeignKey('Collection', on_delete=models.SET_NULL, null=True, blank=True, related_name='movies')
+    directors = models.ManyToManyField("Person", related_name="directed_movies")
+    genres = models.ManyToManyField("Genre")
+    collection = models.ForeignKey(
+        "Collection", on_delete=models.SET_NULL, null=True, blank=True, related_name="movies"
+    )
+    season_number = models.IntegerField(null=True, blank=True)
+    episode_number = models.IntegerField(null=True, blank=True)
     type = models.CharField(max_length=30, choices=Type.choices)
 
     objects = MovieManager()
 
     class Meta:
-        unique_together = ('tmdb_id', 'type')
-        ordering = ['-popularity']
+        unique_together = ("tmdb_id", "type")
+        # ordering = ["-popularity"]
         indexes = [
-            models.Index(fields=['tmdb_id']),
-            models.Index(fields=['title']),
-            models.Index(fields=['year']),
-            models.Index(fields=['popularity']),
-            models.Index(fields=['rating']),
+            models.Index(fields=["tmdb_id"]),
+            models.Index(fields=["title"]),
+            models.Index(fields=["year"]),
+            models.Index(fields=["popularity"]),
+            models.Index(fields=["rating"]),
         ]
 
     def __str__(self):
@@ -181,24 +182,20 @@ class MovieCastManager(models.Manager):
     def create_or_update_from_tmdb(self, movie, cast_data):
         """Create or update movie cast from TMDB data"""
         person = Person.objects.create_or_update_from_tmdb(cast_data)
-        cast, _ = self.get_or_create(
-            movie=movie,
-            person=person,
-            defaults={'character': cast_data.get('character')}
-        )
+        cast, _ = self.get_or_create(movie=movie, person=person, defaults={"character": cast_data.get("character")})
         return cast
 
 
 class MovieCast(models.Model):
-    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='cast')
-    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='acted_movies')
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="cast")
+    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name="acted_movies")
     character = models.CharField(max_length=255, null=True, blank=True)
 
     objects = MovieCastManager()
 
     class Meta:
-        ordering = ['id']
-        unique_together = ['movie', 'person']
+        ordering = ["id"]
+        unique_together = ["movie", "person"]
 
     def __str__(self):
         return f"{self.movie.title} - {self.person.name}"
@@ -207,10 +204,7 @@ class MovieCast(models.Model):
 class GenreManager(models.Manager):
     def create_or_update_from_tmdb(self, genre_data):
         """Create or update genre from TMDB data"""
-        genre, _ = self.get_or_create(
-            tmdb_id=genre_data['id'],
-            defaults={'name': genre_data['name']}
-        )
+        genre, _ = self.get_or_create(tmdb_id=genre_data["id"], defaults={"name": genre_data["name"]})
         return genre
 
 
@@ -221,7 +215,7 @@ class Genre(models.Model):
     objects = GenreManager()
 
     class Meta:
-        ordering = ['name']
+        ordering = ["name"]
 
     def __str__(self):
         return self.name
@@ -231,13 +225,17 @@ class CollectionManager(models.Manager):
     def create_or_update_from_tmdb(self, collection_data):
         """Create or update collection from TMDB data"""
         collection, _ = self.get_or_create(
-            tmdb_id=collection_data['id'],
+            tmdb_id=collection_data["id"],
             defaults={
-                'name': collection_data['name'],
-                'overview': collection_data.get('overview'),
-                'poster_url': f"https://image.tmdb.org/t/p/original{collection_data['poster_path']}" if collection_data.get('poster_path') else None,
-                'backdrop_url': f"https://image.tmdb.org/t/p/original{collection_data['backdrop_path']}" if collection_data.get('backdrop_path') else None,
-            }
+                "name": collection_data["name"],
+                "overview": collection_data.get("overview"),
+                "poster_url": f"https://image.tmdb.org/t/p/original{collection_data['poster_path']}"
+                if collection_data.get("poster_path")
+                else None,
+                "backdrop_url": f"https://image.tmdb.org/t/p/original{collection_data['backdrop_path']}"
+                if collection_data.get("backdrop_path")
+                else None,
+            },
         )
         return collection
 
@@ -252,7 +250,7 @@ class Collection(models.Model):
     objects = CollectionManager()
 
     class Meta:
-        ordering = ['name']
+        ordering = ["name"]
 
     def __str__(self):
         return self.name
@@ -264,7 +262,7 @@ class WatchlistManager(models.Manager):
         queryset = self.filter(user=user)
         if status:
             queryset = queryset.filter(status=status)
-        return queryset.select_related('movie').order_by('-created_at')
+        return queryset.select_related("movie").order_by("-created_at")
 
 
 class Watchlist(models.Model):
@@ -275,21 +273,17 @@ class Watchlist(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE)
-    status = models.CharField(
-        max_length=12,
-        choices=Statuses.choices,
-        default=Statuses.WATCHLIST
-    )
+    status = models.CharField(max_length=12, choices=Statuses.choices, default=Statuses.WATCHLIST)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = WatchlistManager()
 
     class Meta:
-        unique_together = ('user', 'movie')
+        unique_together = ("user", "movie")
         indexes = [
-            models.Index(fields=['user', 'status']),
-            models.Index(fields=['created_at']),
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["created_at"]),
         ]
 
     def __str__(self):
@@ -299,7 +293,7 @@ class Watchlist(models.Model):
 class FavoriteManager(models.Manager):
     def get_user_favorites(self, user):
         """Get user's favorite movies"""
-        return self.filter(user=user).select_related('movie').order_by('-created_at')
+        return self.filter(user=user).select_related("movie").order_by("-created_at")
 
 
 class Favorite(models.Model):
@@ -310,10 +304,10 @@ class Favorite(models.Model):
     objects = FavoriteManager()
 
     class Meta:
-        unique_together = ('user', 'movie')
+        unique_together = ("user", "movie")
         indexes = [
-            models.Index(fields=['user']),
-            models.Index(fields=['created_at']),
+            models.Index(fields=["user"]),
+            models.Index(fields=["created_at"]),
         ]
 
     def __str__(self):
@@ -323,25 +317,20 @@ class Favorite(models.Model):
 class CommentManager(models.Manager):
     def get_movie_comments(self, movie_id, **filters):
         """Get comments for a movie with optional filters"""
-        queryset = self.filter(
-            movie_id=movie_id,
-            parent__isnull=True
-        ).select_related(
-            'user'
-        ).prefetch_related(
-            'responses',
-            'responses__user',
-            'likes'
+        queryset = (
+            self.filter(movie_id=movie_id, parent__isnull=True)
+            .select_related("user")
+            .prefetch_related("responses", "responses__user", "likes")
         )
 
-        if filters.get('rating'):
-            queryset = queryset.filter(rating=filters['rating'])
+        if filters.get("rating"):
+            queryset = queryset.filter(rating=filters["rating"])
 
-        order_by = filters.get('order_by', '-created_at')
-        if order_by == 'likes':
-            queryset = queryset.annotate(likes_count=models.Count('likes')).order_by('-likes_count')
-        elif order_by == 'rating':
-            queryset = queryset.order_by('-rating')
+        order_by = filters.get("order_by", "-created_at")
+        if order_by == "likes":
+            queryset = queryset.annotate(likes_count=models.Count("likes")).order_by("-likes_count")
+        elif order_by == "rating":
+            queryset = queryset.order_by("-rating")
         else:
             queryset = queryset.order_by(order_by)
 
@@ -349,30 +338,26 @@ class CommentManager(models.Manager):
 
 
 class Comment(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
-    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='comments')
-    rating = models.IntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)],
-        null=True,
-        blank=True
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="comments")
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="comments")
+    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)], null=True, blank=True)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='responses')
-    likes = models.ManyToManyField(User, related_name='liked_comments', blank=True)
+    parent = models.ForeignKey("self", on_delete=models.CASCADE, null=True, blank=True, related_name="responses")
+    likes = models.ManyToManyField(User, related_name="liked_comments", blank=True)
 
     objects = CommentManager()
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['movie', 'parent', 'created_at']),
-            models.Index(fields=['user']),
+            models.Index(fields=["movie", "parent", "created_at"]),
+            models.Index(fields=["user"]),
         ]
 
     def __str__(self):
-        return f'Comment by {self.user.username} on {self.movie.title}'
+        return f"Comment by {self.user.username} on {self.movie.title}"
 
     @property
     def likes_count(self):
@@ -385,49 +370,47 @@ class Comment(models.Model):
     def clean(self):
         """Ensure rating is only set for top-level comments"""
         if self.parent and self.rating:
-            raise models.ValidationError({
-                'rating': 'Rating can only be set for top-level comments'
-            })
+            raise models.ValidationError({"rating": "Rating can only be set for top-level comments"})
 
 
 class ListManager(models.Manager):
     def get_featured_lists(self):
         """Get trending and staff picks lists"""
-        return self.annotate(
-            likes_count=models.Count('likes'),
-            movies_count=models.Count('movies')
-        ).order_by('-likes_count', '-created_at')
+        return self.annotate(likes_count=models.Count("likes"), movies_count=models.Count("movies")).order_by(
+            "-likes_count", "-created_at"
+        )
 
     def get_user_lists(self, user):
         """Get lists created by a user"""
-        return self.filter(creator=user).annotate(
-            likes_count=models.Count('likes'),
-            movies_count=models.Count('movies')
-        ).order_by('-created_at')
+        return (
+            self.filter(creator=user)
+            .annotate(likes_count=models.Count("likes"), movies_count=models.Count("movies"))
+            .order_by("-created_at")
+        )
 
     def get_liked_lists(self, user):
         """Get lists liked by a user"""
-        return self.filter(likes=user).annotate(
-            likes_count=models.Count('likes'),
-            movies_count=models.Count('movies')
-        ).order_by('-created_at')
+        return (
+            self.filter(likes=user)
+            .annotate(likes_count=models.Count("likes"), movies_count=models.Count("movies"))
+            .order_by("-created_at")
+        )
 
     def get_community_lists(self):
         """Get popular and recent lists from the community"""
-        return self.annotate(
-            likes_count=models.Count('likes'),
-            movies_count=models.Count('movies')
-        ).order_by('-likes_count', '-created_at')
+        return self.annotate(likes_count=models.Count("likes"), movies_count=models.Count("movies")).order_by(
+            "-likes_count", "-created_at"
+        )
 
 
 class List(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField()
-    thumbnail = models.ImageField(upload_to='lists/thumbnails/')
-    backdrop = models.ImageField(upload_to='lists/backdrops/')
-    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_lists')
-    movies = models.ManyToManyField('Movie', related_name='lists')
-    likes = models.ManyToManyField(User, related_name='liked_lists', blank=True)
+    thumbnail = models.ImageField(upload_to="lists/thumbnails/")
+    backdrop = models.ImageField(upload_to="lists/backdrops/")
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_lists")
+    movies = models.ManyToManyField("Movie", related_name="lists")
+    likes = models.ManyToManyField(User, related_name="liked_lists", blank=True)
     is_staff_pick = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -435,11 +418,11 @@ class List(models.Model):
     objects = ListManager()
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['creator']),
-            models.Index(fields=['created_at']),
-            models.Index(fields=['is_staff_pick']),
+            models.Index(fields=["creator"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["is_staff_pick"]),
         ]
 
     def __str__(self):
@@ -452,11 +435,50 @@ class PersonFollower(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'person')
+        unique_together = ("user", "person")
         indexes = [
-            models.Index(fields=['user']),
-            models.Index(fields=['person']),
+            models.Index(fields=["user"]),
+            models.Index(fields=["person"]),
         ]
 
     def __str__(self):
         return f"{self.user.username} follows {self.person.name}"
+
+
+class EpisodeManager(models.Manager):
+    def create_or_update_from_tmdb(self, episode_data, movie):
+        """Create or update episode from TMDB data"""
+        episode, created = self.get_or_create(
+            tmdb_id=episode_data["tmdb_id"],
+            movie=movie,
+            defaults={
+                "name": episode_data["name"],
+                "overview": episode_data.get("overview"),
+                "air_date": episode_data.get("air_date"),
+                "season_number": episode_data.get("season_number"),
+                "episode_number": episode_data.get("episode_number"),
+                "runtime": episode_data.get("runtime"),
+                "still_url": episode_data.get("still_url"),
+                "vote_average": episode_data.get("vote_average"),
+            },
+        )
+
+        return episode
+
+
+class Episode(models.Model):
+    tmdb_id = models.IntegerField()
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="episodes")
+    season_number = models.IntegerField()
+    episode_number = models.IntegerField()
+    name = models.CharField(max_length=255, blank=True, null=True)
+    overview = models.TextField(blank=True, null=True)
+    runtime = models.IntegerField(blank=True, null=True)
+    still_url = models.URLField(blank=True, null=True)
+    vote_average = models.FloatField(blank=True, null=True)
+    air_date = models.DateField(blank=True, null=True)
+
+    objects = EpisodeManager()
+
+    class Meta:
+        unique_together = ("movie", "season_number", "episode_number")

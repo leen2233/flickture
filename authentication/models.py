@@ -1,15 +1,15 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.db import models
 from django.core.exceptions import ValidationError
+from django.db import models
 from rest_framework.authtoken.models import Token
 
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email=None, password=None, **extra_fields):
         if not username:
-            raise ValueError('The Username field must be set')
+            raise ValueError("The Username field must be set")
         if not email:
-            raise ValueError('Either Email or Phone must be set')
+            raise ValueError("Either Email or Phone must be set")
 
         email = self.normalize_email(email)
         user = self.model(username=username, email=email, **extra_fields)
@@ -19,14 +19,14 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, username, email="testadminuser@test.com", password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
 
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
 
         return self.create_user(username, email, password, **extra_fields)
 
@@ -38,26 +38,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     password = models.CharField(max_length=128)
 
     about = models.TextField(blank=True)
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
-    banner_image = models.ImageField(upload_to='banners/', null=True, blank=True)
-    following = models.ManyToManyField(
-        'self',
-        symmetrical=False,
-        related_name='followers',
-        blank=True
-    )
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    banner_image = models.ImageField(upload_to="banners/", null=True, blank=True)
+    following = models.ManyToManyField("self", symmetrical=False, related_name="followers", blank=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 
-    USERNAME_FIELD = 'username'
+    USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []  # Username is already required, so no need for other required fields
 
     def clean(self):
         if not self.email:
-            raise ValidationError('Either email or phone must be provided.')
+            raise ValidationError("Either email or phone must be provided.")
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

@@ -3,6 +3,7 @@ import pprint
 
 from django.conf import settings
 from django.core.cache import cache
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from drf_yasg import openapi
@@ -14,9 +15,10 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from core.models import Collection, Comment, Movie, MovieCast, Person, Watchlist
+from core.models import Collection, Comment, Episode, Movie, MovieCast, Person, Watchlist
 from core.serializers import (
     CommentSerializer,
+    EpisodeSerializer,
     MovieDetailSerializer,
     MovieListSerializer,
     MovieSerializer,
@@ -97,6 +99,8 @@ class MovieDetailView(generics.RetrieveAPIView):
 
     def _should_fetch_details(self, movie):
         """Check if we need to fetch additional details from TMDB"""
+        if movie.type == "tv" and movie.season_number is None:
+            return True
         return not (movie.plot and movie.rating and movie.genres.exists())
 
     def _fetch_movie_details(self, movie):
@@ -448,7 +452,7 @@ class MultiSearchView(generics.ListAPIView):
         try:
             logger.info(f"ContentSearchView: Fetching results from TMDB for query: {query}")
             results = tmdb_client.search_multi(query)
-            
+
             # save results
             for result in results.get("results")[:5]:
                 if result.get("type") in ["movie", "tv"]:
@@ -461,3 +465,24 @@ class MultiSearchView(generics.ListAPIView):
         except Exception as e:
             logger.error(f"ContentSearchView: Error searching content: {str(e)}", exc_info=True)
             raise ValidationError({"detail": f"Failed to search content: {str(e)}"})
+
+
+class EpisodeListView(generics.ListAPIView):
+    serializer_class = EpisodeSerializer
+    pagination_class = None
+
+    def get_queryset(self, *args, **kwargs):
+        tmdb_id = int(self.kwargs.get("tmdb_id", 0))
+        season_number = int(self.kwargs.get("season_number", 1))
+        print(tmdb_id, "tmdb id")
+
+        movie = get_object_or_404(Movie, tmdb_id=tmdb_id)
+
+        if Episode.objects.filter(movie=movie).count() < movie.episode_number:
+            season_number = movie.season_number
+            for season in range(1, season_number + 1):
+                episodes = tmdb_client.get_tv_season_episodes(tmdb_id, season)
+                for episode in episodes:
+                    Episode.objects.create_or_update_from_tmdb(episode, movie=movie)
+
+        return Episode.objects.filter(movie=movie, season_number=season_number)

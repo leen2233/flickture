@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from authentication.models import User
 
-from .models import Collection, Comment, Favorite, Genre, List, Movie, MovieCast, Person, Watchlist
+from .models import Collection, Comment, Episode, Favorite, Genre, List, Movie, MovieCast, Person, Watchlist
 
 
 class BaseSerializer(serializers.ModelSerializer):
@@ -101,6 +101,8 @@ class MovieDetailSerializer(MovieSerializer):
             "collection",
             "comment_count",
             "cast_count",
+            "season_number",
+            "episode_number",
         ]
 
     def get_cast_count(self, obj):
@@ -272,3 +274,9 @@ class ListDetailSerializer(ListSerializer):
 
     class Meta(ListSerializer.Meta):
         fields = ListSerializer.Meta.fields + ["movies"]
+
+
+class EpisodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Episode
+        fields = "__all__"
