@@ -225,16 +225,12 @@ class CollectionManager(models.Manager):
     def create_or_update_from_tmdb(self, collection_data):
         """Create or update collection from TMDB data"""
         collection, _ = self.get_or_create(
-            tmdb_id=collection_data["id"],
+            tmdb_id=collection_data["tmdb_id"],
             defaults={
                 "name": collection_data["name"],
                 "overview": collection_data.get("overview"),
-                "poster_url": f"https://image.tmdb.org/t/p/original{collection_data['poster_path']}"
-                if collection_data.get("poster_path")
-                else None,
-                "backdrop_url": f"https://image.tmdb.org/t/p/original{collection_data['backdrop_path']}"
-                if collection_data.get("backdrop_path")
-                else None,
+                "poster_url": collection_data.get("poster_url"),
+                "backdrop_url": collection_data.get("backdrop_url"),
             },
         )
         return collection

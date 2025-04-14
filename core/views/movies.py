@@ -470,6 +470,8 @@ class MultiSearchView(generics.ListAPIView):
 class EpisodeListView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
     pagination_class = None
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get_queryset(self, *args, **kwargs):
         tmdb_id = int(self.kwargs.get("tmdb_id", 0))

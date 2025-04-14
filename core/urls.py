@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     CastListAPIView,
+    CollectionDetailAPIView,
     EpisodeListView,
     FavoriteAPIView,
     ListViewSet,
@@ -40,13 +41,8 @@ urlpatterns = [
     path("watchlist/movies/<str:status>/", WatchlistMoviesView.as_view(), name="watchlist-movies"),
     path("favorites/", FavoriteAPIView.as_view(), name="favorites"),
     path("favorites/<str:tmdb_id>/", FavoriteAPIView.as_view(), name="favorite-detail"),
-    # List endpoints
-    path("lists/", ListViewSet.as_view({"get": "list", "post": "create"}), name="list-list"),
-    path(
-        "lists/<int:pk>/",
-        ListViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}),
-        name="list-detail",
-    ),
+    # collection endpoints
+    path("collections/<str:tmdb_id>/", CollectionDetailAPIView.as_view(), name="collection-detail"),
 ]
 
 # Include router URLs

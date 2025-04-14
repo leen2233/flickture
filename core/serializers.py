@@ -80,7 +80,7 @@ class CollectionSerializer(serializers.ModelSerializer):
         return obj.movies.count()
 
     def get_movies(self, obj):
-        movies = obj.movies.all().order_by("-year")
+        movies = obj.movies.all().order_by("year")
         return MovieListSerializer(movies, many=True, context=self.context).data
 
 

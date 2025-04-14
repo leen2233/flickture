@@ -167,7 +167,9 @@ class TMDBClient:
         Returns:
             Collection details including all movies
         """
-        return self._get(f"collection/{collection_id}")
+        response = self._get(f"collection/{collection_id}")
+        response = self.process_collection_data(response)
+        return response
 
     def process_movie_data(self, movie_data: Dict) -> Dict:
         """
@@ -179,6 +181,7 @@ class TMDBClient:
         Returns:
             Processed movie data ready for our database
         """
+
         return {
             "tmdb_id": movie_data["id"],
             "title": movie_data["title"],
@@ -192,6 +195,7 @@ class TMDBClient:
             "poster_preview_url": self._get_image_url(movie_data.get("poster_path", ""), "w500"),
             "backdrop_url": self._get_image_url(movie_data.get("backdrop_path", "")),
             "genres": movie_data.get("genres", []),
+            "belongs_to_collection": movie_data.get("belongs_to_collection", None),
             "type": "movie",
         }
 
@@ -254,12 +258,17 @@ class TMDBClient:
         Returns:
             Processed collection data ready for our database
         """
+        parts = []
+        for part in collection_data["parts"]:
+            parts.append(self.process_movie_data(part))
+
         return {
             "tmdb_id": collection_data["id"],
             "name": collection_data["name"],
             "overview": collection_data.get("overview"),
             "poster_url": self._get_image_url(collection_data.get("poster_path")),
             "backdrop_url": self._get_image_url(collection_data.get("backdrop_path")),
+            "parts": parts,
         }
 
     def process_season_data(self, season_data: Dict) -> List:
