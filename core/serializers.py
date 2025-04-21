@@ -1,3 +1,4 @@
+import pprint
 from django.core.validators import MaxValueValidator, MinValueValidator
 from rest_framework import serializers
 
@@ -304,6 +305,7 @@ class FeedEventSerializer(serializers.Serializer):
 
         return {
             "id": user.id,
+            "username": user.username,
             "name": user.full_name or user.username,
             "avatar": self.context["request"].build_absolute_uri(user.avatar.url)
             if user.avatar
@@ -368,12 +370,14 @@ class FeedEventSerializer(serializers.Serializer):
         if obj.get("type") != "list_create":
             return None
 
+        movie_list = obj.get("list")
         if not movie_list:
             return None
 
         return {
             "id": movie_list.id,
             "title": movie_list.name,
+            "description": movie_list.description,
             "thumbnail": self.context["request"].build_absolute_uri(movie_list.thumbnail.url),
             "movie_count": movie_list.movies.count(),
         }

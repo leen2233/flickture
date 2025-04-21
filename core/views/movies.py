@@ -478,7 +478,7 @@ class EpisodeListView(generics.ListAPIView):
         season_number = int(self.kwargs.get("season_number", 1))
         print(tmdb_id, "tmdb id")
 
-        movie = get_object_or_404(Movie, tmdb_id=tmdb_id)
+        movie = get_object_or_404(Movie, tmdb_id=tmdb_id, type="tv")
 
         if Episode.objects.filter(movie=movie).count() < movie.episode_number:
             season_number = movie.season_number
