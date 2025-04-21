@@ -280,3 +280,100 @@ class EpisodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Episode
         fields = "__all__"
+
+
+class FeedEventSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    type = serializers.CharField()
+    user = serializers.SerializerMethodField()
+    movie = serializers.SerializerMethodField()
+    show = serializers.SerializerMethodField()
+    episode = serializers.SerializerMethodField()
+    list = serializers.SerializerMethodField()
+    comment = serializers.CharField(required=False)
+    rating = serializers.FloatField(required=False)
+    timestamp = serializers.DateTimeField()
+
+    def get_user(self, obj):
+        if obj.get("type") == "new_movie" or obj.get("type") == "new_episode":
+            return None
+
+        user = obj.get("user")
+        if not user:
+            return None
+
+        return {
+            "id": user.id,
+            "name": user.full_name or user.username,
+            "avatar": self.context["request"].build_absolute_uri(user.avatar.url)
+            if user.avatar
+            else "/default-avatar.png",
+        }
+
+    def get_movie(self, obj):
+        if obj.get("type") == "new_episode" or obj.get("type") == "list_create":
+            return None
+
+        movie = obj.get("movie")
+        if not movie:
+            return None
+
+        genres = GenreSerializer(movie.genres.all(), many=True).data
+        genre_names = [genre["name"] for genre in genres]
+
+        return {
+            "id": movie.id,
+            "title": movie.title,
+            "poster": movie.poster_url,
+            "year": str(movie.year) if movie.year else "",
+            "genres": genre_names,
+            "overview": movie.plot,
+            "runtime": movie.runtime,
+            "vote_count": movie.vote_count,
+            "rating": movie.rating,
+        }
+
+    def get_show(self, obj):
+        if obj.get("type") != "new_episode":
+            return None
+
+        show = obj.get("movie")
+        if not show:
+            return None
+
+        genres = GenreSerializer(show.genres.all(), many=True).data
+        genre_names = [genre["name"] for genre in genres]
+
+        return {
+            "id": show.id,
+            "title": show.title,
+            "poster": show.poster_url,
+            "year": str(show.year) if show.year else "",
+            "genres": genre_names,
+            "overview": show.plot,
+            "rating": show.rating,
+        }
+
+    def get_episode(self, obj):
+        if obj.get("type") != "new_episode":
+            return None
+
+        episode = obj.get("episode")
+        if not episode:
+            return None
+
+        return {"season": episode.season_number, "episode": episode.episode_number, "title": episode.name}
+
+    def get_list(self, obj):
+        if obj.get("type") != "list_create":
+            return None
+
+        if not movie_list:
+            return None
+
+        return {
+            "id": movie_list.id,
+            "title": movie_list.name,
+            "thumbnail": self.context["request"].build_absolute_uri(movie_list.thumbnail.url),
+            "movie_count": movie_list.movies.count(),
+        }

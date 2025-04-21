@@ -6,6 +6,7 @@ from .views import (
     CollectionDetailAPIView,
     EpisodeListView,
     FavoriteAPIView,
+    FeedView,
     ListViewSet,
     MovieCommentsViewSet,
     MovieDetailView,
@@ -43,6 +44,8 @@ urlpatterns = [
     path("favorites/<str:tmdb_id>/", FavoriteAPIView.as_view(), name="favorite-detail"),
     # collection endpoints
     path("collections/<str:tmdb_id>/", CollectionDetailAPIView.as_view(), name="collection-detail"),
+    # feed endpoints
+    path("feed/", FeedView.as_view(), name="feed"),
 ]
 
 # Include router URLs
