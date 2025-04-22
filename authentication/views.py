@@ -159,4 +159,23 @@ class UserPublicView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
-    lookup_field = 'username'
+    lookup_field = "username"
+
+
+class UserFollowUnfollowView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = User.objects.all()
+    lookup_field = "username"
+
+    def create(self, request, *args, **kwargs):
+        user = self.request.user
+        user_to_follow = self.get_object()
+        print(user, user_to_follow)
+        if user_to_follow == user:
+            return Response({"error": "You cannot follow yourself"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user_to_follow in user.following.all():
+            user.following.remove(user_to_follow)
+            return Response({"message": "Unfollowed successfully", "status": "unfollowed"}, status=status.HTTP_200_OK)
+        user.following.add(user_to_follow)
+        return Response({"message": "Followed successfully", "status": "followed"}, status=status.HTTP_200_OK)

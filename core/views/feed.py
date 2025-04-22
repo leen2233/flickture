@@ -16,6 +16,10 @@ class FeedView(APIView):
         # Get last 30 days of activity by default or use query param
         days = int(request.query_params.get("days", 30))
         time_threshold = timezone.now() - timedelta(days=days)
+        following = request.query_params.get("following", False)
+        following_user_ids = None
+        if following:
+            following_user_ids = request.user.following.values_list("id", flat=True)
 
         # Activity types filter
         activity_types = request.query_params.getlist("types", [])
@@ -27,11 +31,18 @@ class FeedView(APIView):
 
         # Favorites (likes)
         if "like" in activity_types:
-            favorites = (
-                Favorite.objects.filter(created_at__gte=time_threshold)
-                .select_related("user", "movie")
-                .prefetch_related("movie__genres")
-            )
+            if following:
+                favorites = (
+                    Favorite.objects.filter(created_at__gte=time_threshold, user__id__in=following_user_ids)
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
+                )
+            else:
+                favorites = (
+                    Favorite.objects.filter(created_at__gte=time_threshold)
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
+                )
 
             for favorite in favorites:
                 feed_events.append(
@@ -47,11 +58,22 @@ class FeedView(APIView):
 
         # Watchlist entries with status "watched"
         if "watch" in activity_types:
-            watched = (
-                Watchlist.objects.filter(status=Watchlist.Statuses.WATCHED, updated_at__gte=time_threshold)
-                .select_related("user", "movie")
-                .prefetch_related("movie__genres")
-            )
+            if following:
+                watched = (
+                    Watchlist.objects.filter(
+                        status=Watchlist.Statuses.WATCHED,
+                        updated_at__gte=time_threshold,
+                        user__id__in=following_user_ids,
+                    )
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
+                )
+            else:
+                watched = (
+                    Watchlist.objects.filter(status=Watchlist.Statuses.WATCHED, updated_at__gte=time_threshold)
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
+                )
 
             for watch in watched:
                 # Get rating from comment if exists
@@ -75,14 +97,25 @@ class FeedView(APIView):
 
         # Comments
         if "comment" in activity_types:
-            comments = (
-                Comment.objects.filter(
-                    created_at__gte=time_threshold,
-                    parent__isnull=True,  # Only top-level comments
+            if following:
+                comments = (
+                    Comment.objects.filter(
+                        created_at__gte=time_threshold,
+                        parent__isnull=True,  # Only top-level comments
+                        user__id__in=following_user_ids,
+                    )
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
                 )
-                .select_related("user", "movie")
-                .prefetch_related("movie__genres")
-            )
+            else:
+                comments = (
+                    Comment.objects.filter(
+                        created_at__gte=time_threshold,
+                        parent__isnull=True,  # Only top-level comments
+                    )
+                    .select_related("user", "movie")
+                    .prefetch_related("movie__genres")
+                )
 
             for comment in comments:
                 feed_events.append(
@@ -97,34 +130,45 @@ class FeedView(APIView):
                 )
                 event_id += 1
 
-        # New TV Episodes (within period)
-        if "new_episode" in activity_types:
-            episodes = (
-                Episode.objects.filter(air_date__gte=time_threshold)
-                .select_related("movie")
-                .prefetch_related("movie__genres")
-            )
+        # only show new episodes at global feed
+        if not following:
+            # New TV Episodes (within period)
+            if "new_episode" in activity_types:
+                episodes = (
+                    Episode.objects.filter(air_date__gte=time_threshold)
+                    .select_related("movie")
+                    .prefetch_related("movie__genres")
+                )
 
-            for episode in episodes:
-                if episode.movie.type == Movie.Type.tv:
-                    feed_events.append(
-                        {
-                            "id": event_id,
-                            "type": "new_episode",
-                            "movie": episode.movie,  # The TV show
-                            "episode": episode,
-                            "timestamp": timezone.make_aware(
-                                timezone.datetime.combine(episode.air_date, timezone.datetime.min.time())
-                            ),
-                        }
-                    )
-                    event_id += 1
+                for episode in episodes:
+                    if episode.movie.type == Movie.Type.tv:
+                        feed_events.append(
+                            {
+                                "id": event_id,
+                                "type": "new_episode",
+                                "movie": episode.movie,  # The TV show
+                                "episode": episode,
+                                "timestamp": timezone.make_aware(
+                                    timezone.datetime.combine(episode.air_date, timezone.datetime.min.time())
+                                ),
+                            }
+                        )
+                        event_id += 1
 
         # New Lists
         if "list_create" in activity_types:
-            movie_lists = (
-                List.objects.filter(created_at__gte=time_threshold).select_related("creator").prefetch_related("movies")
-            )
+            if following:
+                movie_lists = (
+                    List.objects.filter(created_at__gte=time_threshold, creator__id__in=following_user_ids)
+                    .select_related("creator")
+                    .prefetch_related("movies")
+                )
+            else:
+                movie_lists = (
+                    List.objects.filter(created_at__gte=time_threshold)
+                    .select_related("creator")
+                    .prefetch_related("movies")
+                )
 
             for movie_list in movie_lists:
                 feed_events.append(
