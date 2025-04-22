@@ -39,7 +39,7 @@ class FeedView(APIView):
                 )
             else:
                 favorites = (
-                    Favorite.objects.filter(created_at__gte=time_threshold)
+                    Favorite.objects.filter(created_at__gte=time_threshold, user__is_public=True)
                     .select_related("user", "movie")
                     .prefetch_related("movie__genres")
                 )
@@ -70,7 +70,9 @@ class FeedView(APIView):
                 )
             else:
                 watched = (
-                    Watchlist.objects.filter(status=Watchlist.Statuses.WATCHED, updated_at__gte=time_threshold)
+                    Watchlist.objects.filter(
+                        status=Watchlist.Statuses.WATCHED, updated_at__gte=time_threshold, user__is_public=True
+                    )
                     .select_related("user", "movie")
                     .prefetch_related("movie__genres")
                 )
@@ -112,6 +114,7 @@ class FeedView(APIView):
                     Comment.objects.filter(
                         created_at__gte=time_threshold,
                         parent__isnull=True,  # Only top-level comments
+                        user__is_public=True,
                     )
                     .select_related("user", "movie")
                     .prefetch_related("movie__genres")
@@ -165,7 +168,7 @@ class FeedView(APIView):
                 )
             else:
                 movie_lists = (
-                    List.objects.filter(created_at__gte=time_threshold)
+                    List.objects.filter(created_at__gte=time_threshold, creator__is_public=True)
                     .select_related("creator")
                     .prefetch_related("movies")
                 )

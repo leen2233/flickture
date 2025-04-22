@@ -25,6 +25,12 @@ class SignUpSerializer(serializers.ModelSerializer):
         return user
 
 
+class UserSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['is_public']
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     recently_watched = SerializerMethodField()
     watchlist = SerializerMethodField()
@@ -40,6 +46,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'about',
             'avatar',
             'banner_image',
+            'is_public',
             'recently_watched',
             'watchlist',
             'favorites',

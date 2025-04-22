@@ -41,6 +41,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     banner_image = models.ImageField(upload_to="banners/", null=True, blank=True)
     following = models.ManyToManyField("self", symmetrical=False, related_name="followers", blank=True)
+    
+    is_public = models.BooleanField(default=True, help_text="Whether the user profile is publicly visible")
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

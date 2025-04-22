@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import User
-from .serializers import SignUpSerializer, UserProfileSerializer
+from .serializers import SignUpSerializer, UserProfileSerializer, UserSettingsSerializer
 
 
 class LoginView(APIView):
@@ -160,6 +160,14 @@ class UserPublicView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
     lookup_field = "username"
+    
+    def get_object(self):
+        obj = super().get_object()
+        # Check if the user's profile is public or if the requester is the owner
+        if not obj.is_public and (self.request.user.is_anonymous or obj != self.request.user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("This profile is private")
+        return obj
 
 
 class UserFollowUnfollowView(generics.CreateAPIView):
@@ -179,3 +187,45 @@ class UserFollowUnfollowView(generics.CreateAPIView):
             return Response({"message": "Unfollowed successfully", "status": "unfollowed"}, status=status.HTTP_200_OK)
         user.following.add(user_to_follow)
         return Response({"message": "Followed successfully", "status": "followed"}, status=status.HTTP_200_OK)
+
+
+class UserSettingsView(generics.RetrieveUpdateAPIView):
+    """
+    Retrieve or update user settings.
+    """
+    serializer_class = UserSettingsSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Get current user's settings",
+        responses={
+            200: UserSettingsSerializer,
+            401: "Unauthorized - Invalid or missing token",
+            403: "Forbidden - Not authenticated",
+        },
+        security=[{"Token": []}],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_description="Update current user's settings",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "is_public": openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether the profile is publicly visible"),
+            },
+        ),
+        responses={
+            200: UserSettingsSerializer,
+            400: "Bad Request - Invalid data",
+            401: "Unauthorized - Invalid or missing token",
+            403: "Forbidden - Not authenticated",
+        },
+        security=[{"Token": []}],
+    )
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
+
+    def get_object(self):
+        return self.request.user
