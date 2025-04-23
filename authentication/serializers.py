@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from core.models import Watchlist
+from core.models import Favorite, Watchlist
+from core.serializers import MovieSerializer
 
 from .models import User
 
@@ -16,6 +17,9 @@ class SignUpSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    recently_watched = serializers.SerializerMethodField()
+    watchlist = serializers.SerializerMethodField()
+    favorites = serializers.SerializerMethodField()
     follower_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
@@ -35,6 +39,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "is_following",
             "is_public",
             "movies_watched",
+            "recently_watched",
+            "watchlist",
+            "favorites",
         ]
         read_only_fields = ["username", "follower_count", "following_count", "is_following"]
 
@@ -52,6 +59,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_movies_watched(self, obj):
         return Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHED).count()
+
+    def get_recently_watched(self, obj):
+        watchlist = Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHED).order_by("-created_at")[:5]
+        return [{"movie": MovieSerializer(item.movie).data, "updated_at": item.created_at} for item in watchlist]
+
+    def get_watchlist(self, obj):
+        watchlist = Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHLIST).order_by("-created_at")[:5]
+        return [{"movie": MovieSerializer(item.movie).data, "updated_at": item.created_at} for item in watchlist]
+
+    def get_favorites(self, obj):
+        favorites = Favorite.objects.filter(user=obj).order_by("-created_at")[:5]
+        return [{"movie": MovieSerializer(item.movie).data, "updated_at": item.created_at} for item in favorites]
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):
