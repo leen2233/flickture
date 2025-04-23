@@ -1,14 +1,176 @@
 from django.contrib.auth import authenticate
+from django.db.models import Q
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, status
+from rest_framework import filters, generics, status
 from rest_framework.authtoken.models import Token
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import User
-from .serializers import SignUpSerializer, UserProfileSerializer, UserSettingsSerializer
+from .serializers import SignUpSerializer, UserMinimalSerializer, UserProfileSerializer, UserSettingsSerializer
+
+
+class StandardResultsPagination(PageNumberPagination):
+    """Standard pagination for API results"""
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response(
+            {
+                "next": self.get_next_link(),
+                "previous": self.get_previous_link(),
+                "count": self.page.paginator.count,
+                "results": data,
+            }
+        )
+
+
+class UserFollowersListView(generics.ListAPIView):
+    """
+    Retrieve a user's followers list with pagination and search functionality.
+
+    Returns a paginated list of users who follow the specified user.
+    If the user's profile is private, only the user themselves can see their followers.
+    """
+
+    serializer_class = UserMinimalSerializer
+    permission_classes = [AllowAny]
+    pagination_class = StandardResultsPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["username", "full_name"]
+
+    @swagger_auto_schema(
+        operation_description="Get a user's followers list with pagination",
+        manual_parameters=[
+            openapi.Parameter(
+                "search", openapi.IN_QUERY, description="Search by username or full name", type=openapi.TYPE_STRING
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved followers list",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "next": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for next page"
+                        ),
+                        "previous": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for previous page"
+                        ),
+                        "count": openapi.Schema(type=openapi.TYPE_INTEGER, description="Total count of items"),
+                        "results": openapi.Schema(
+                            type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)
+                        ),
+                    },
+                ),
+            ),
+            403: "Forbidden - Private profile",
+            404: "Not Found - User not found",
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        username = self.kwargs.get("username")
+        try:
+            user = User.objects.get(username=username)
+
+            # Check if the profile is private and the requester is not the owner
+            if not user.is_public and (self.request.user.is_anonymous or user != self.request.user):
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied("This profile is private")
+
+            # Get followers with search functionality if provided
+            queryset = user.followers.all()
+            search_query = self.request.query_params.get("search", None)
+            if search_query:
+                queryset = queryset.filter(Q(username__icontains=search_query) | Q(full_name__icontains=search_query))
+
+            return queryset
+        except User.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("User not found")
+
+
+class UserFollowingListView(generics.ListAPIView):
+    """
+    Retrieve a user's following list with pagination and search functionality.
+
+    Returns a paginated list of users who follow the specified user.
+    If the user's profile is private, only the user themselves can see their followers.
+    """
+
+    serializer_class = UserMinimalSerializer
+    permission_classes = [AllowAny]
+    pagination_class = StandardResultsPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["username", "full_name"]
+
+    @swagger_auto_schema(
+        operation_description="Get a user's following list with pagination",
+        manual_parameters=[
+            openapi.Parameter(
+                "search", openapi.IN_QUERY, description="Search by username or full name", type=openapi.TYPE_STRING
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved following list",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "next": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for next page"
+                        ),
+                        "previous": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for previous page"
+                        ),
+                        "count": openapi.Schema(type=openapi.TYPE_INTEGER, description="Total count of items"),
+                        "results": openapi.Schema(
+                            type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)
+                        ),
+                    },
+                ),
+            ),
+            403: "Forbidden - Private profile",
+            404: "Not Found - User not found",
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        username = self.kwargs.get("username")
+        try:
+            user = User.objects.get(username=username)
+
+            # Check if the profile is private and the requester is not the owner
+            if not user.is_public and (self.request.user.is_anonymous or user != self.request.user):
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied("This profile is private")
+
+            # Get followers with search functionality if provided
+            queryset = user.following.all()
+            search_query = self.request.query_params.get("search", None)
+            if search_query:
+                queryset = queryset.filter(Q(username__icontains=search_query) | Q(full_name__icontains=search_query))
+
+            return queryset
+        except User.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("User not found")
 
 
 class LoginView(APIView):
@@ -160,12 +322,13 @@ class UserPublicView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
     lookup_field = "username"
-    
+
     def get_object(self):
         obj = super().get_object()
         # Check if the user's profile is public or if the requester is the owner
         if not obj.is_public and (self.request.user.is_anonymous or obj != self.request.user):
             from rest_framework.exceptions import PermissionDenied
+
             raise PermissionDenied("This profile is private")
         return obj
 
@@ -193,6 +356,7 @@ class UserSettingsView(generics.RetrieveUpdateAPIView):
     """
     Retrieve or update user settings.
     """
+
     serializer_class = UserSettingsSerializer
     permission_classes = [IsAuthenticated]
 
@@ -213,7 +377,9 @@ class UserSettingsView(generics.RetrieveUpdateAPIView):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "is_public": openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether the profile is publicly visible"),
+                "is_public": openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN, description="Whether the profile is publicly visible"
+                ),
             },
         ),
         responses={

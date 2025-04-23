@@ -17,9 +17,10 @@ class FeedView(APIView):
         days = int(request.query_params.get("days", 30))
         time_threshold = timezone.now() - timedelta(days=days)
         following = request.query_params.get("following", False)
-        following_user_ids = None
+        following_user_ids = []
         if following:
-            following_user_ids = request.user.following.values_list("id", flat=True)
+            if request.user.is_authenticated:
+                following_user_ids = request.user.following.values_list("id", flat=True)
 
         # Activity types filter
         activity_types = request.query_params.getlist("types", [])
