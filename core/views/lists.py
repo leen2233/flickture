@@ -58,6 +58,82 @@ class ListViewSet(viewsets.ModelViewSet):
             print(movies)
             list_obj.movies.set(movies)
 
+    @action(detail=True, methods=["POST"])
+    def add_movie(self, request, pk=None):
+        """Add a movie to a list"""
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        list_obj = self.get_object()
+
+        # Check if user is the creator of the list
+        if list_obj.creator != request.user:
+            return Response({"detail": "You can only modify your own lists"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get movie data from request
+        try:
+            tmdb_id = request.data.get("tmdb_id")
+            movie_type = request.data.get("type")
+
+            if not tmdb_id or not movie_type:
+                return Response(
+                    {"detail": "Movie data must include tmdb_id and type"}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Find the movie
+            try:
+                movie = Movie.objects.get(tmdb_id=tmdb_id, type=movie_type)
+            except Movie.DoesNotExist:
+                return Response({"detail": "Movie not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            # Check if movie is already in the list
+            if list_obj.movies.filter(tmdb_id=tmdb_id, type=movie_type).exists():
+                return Response({"detail": "Movie already in list"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Add movie to list
+            list_obj.movies.add(movie)
+
+            return Response({"detail": "Movie added to list"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["POST"])
+    def remove_movie(self, request, pk=None):
+        """Remove a movie from a list"""
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        list_obj = self.get_object()
+
+        # Check if user is the creator of the list
+        if list_obj.creator != request.user:
+            return Response({"detail": "You can only modify your own lists"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get movie data from request
+        try:
+            tmdb_id = request.data.get("tmdb_id")
+            movie_type = request.data.get("type")
+
+            if not tmdb_id or not movie_type:
+                return Response(
+                    {"detail": "Movie data must include tmdb_id and type"}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Find the movie in the list
+            try:
+                movie = list_obj.movies.get(tmdb_id=tmdb_id, type=movie_type)
+            except Movie.DoesNotExist:
+                return Response({"detail": "Movie not in list"}, status=status.HTTP_404_NOT_FOUND)
+
+            # Remove movie from list
+            list_obj.movies.remove(movie)
+
+            return Response({"detail": "Movie removed from list"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=["GET"])
     def featured(self, request):
         """Get trending and staff picks lists"""
@@ -125,3 +201,22 @@ class ListViewSet(viewsets.ModelViewSet):
             liked = True
 
         return Response({"liked": liked})
+
+    @action(detail=True, methods=["GET"])
+    def check_movie(self, request, pk=None):
+        """Check if a movie is in a list"""
+        list_obj = self.get_object()
+
+        # Get movie ID from query parameters
+        tmdb_id = request.query_params.get("tmdb_id")
+        movie_type = request.query_params.get("type")
+
+        if not tmdb_id or not movie_type:
+            return Response(
+                {"detail": "Movie tmdb_id and type are required query parameters"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if movie exists in the list
+        exists = list_obj.movies.filter(tmdb_id=tmdb_id, type=movie_type).exists()
+
+        return Response({"exists": exists})
