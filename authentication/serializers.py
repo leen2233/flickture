@@ -19,7 +19,9 @@ class SignUpSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     recently_watched = serializers.SerializerMethodField()
     watchlist = serializers.SerializerMethodField()
+    watchlist_count = serializers.SerializerMethodField()
     favorites = serializers.SerializerMethodField()
+    favorites_count = serializers.SerializerMethodField()
     follower_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
@@ -41,7 +43,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "movies_watched",
             "recently_watched",
             "watchlist",
+            "watchlist_count",
             "favorites",
+            "favorites_count",
         ]
         read_only_fields = ["username", "follower_count", "following_count", "is_following"]
 
@@ -68,9 +72,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
         watchlist = Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHLIST).order_by("-created_at")[:5]
         return [{"movie": MovieSerializer(item.movie).data, "updated_at": item.created_at} for item in watchlist]
 
+    def get_watchlist_count(self, obj):
+        return Watchlist.objects.filter(user=obj, status=Watchlist.Statuses.WATCHLIST).count()
+
     def get_favorites(self, obj):
         favorites = Favorite.objects.filter(user=obj).order_by("-created_at")[:5]
         return [{"movie": MovieSerializer(item.movie).data, "updated_at": item.created_at} for item in favorites]
+
+    def get_favorites_count(self, obj):
+        return Favorite.objects.filter(user=obj).count()
 
 
 class UserMinimalSerializer(serializers.ModelSerializer):
@@ -86,3 +96,18 @@ class UserSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["is_public"]
+
+
+class WatchlistItemSerializer(serializers.ModelSerializer):
+    """Serializer for user's watchlist items with movie details and favorite status"""
+    movie = MovieSerializer(read_only=True)
+    is_favorite = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Watchlist
+        fields = ['id', 'movie', 'status', 'created_at', 'updated_at', 'is_favorite']
+        read_only_fields = fields
+    
+    def get_is_favorite(self, obj):
+        """Check if the movie is in user's favorites"""
+        return Favorite.objects.filter(user=obj.user, movie=obj.movie).exists()

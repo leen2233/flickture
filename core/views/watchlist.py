@@ -131,6 +131,7 @@ class WatchlistAPIView(generics.ListCreateAPIView, generics.RetrieveUpdateDestro
     def get_object(self):
         try:
             tmdb_id = self.kwargs.get('tmdb_id')
+            print(tmdb_id)
             movie = Movie.objects.get(tmdb_id=tmdb_id)
             return Watchlist.objects.get(user=self.request.user, movie=movie)
         except Movie.DoesNotExist:

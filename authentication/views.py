@@ -9,8 +9,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.models import Favorite, Watchlist
+
 from .models import User
-from .serializers import SignUpSerializer, UserMinimalSerializer, UserProfileSerializer, UserSettingsSerializer
+from .serializers import (
+    SignUpSerializer,
+    UserMinimalSerializer,
+    UserProfileSerializer,
+    UserSettingsSerializer,
+    WatchlistItemSerializer,
+)
 
 
 class StandardResultsPagination(PageNumberPagination):
@@ -395,3 +403,95 @@ class UserSettingsView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class UserWatchlistView(generics.ListAPIView):
+    """
+    Retrieve the current user's watchlist items with filtering options.
+
+    Allows filtering by:
+    - status: Filter by watchlist status (watchlist, watched, watching)
+    - is_favorite: Filter by whether the movie is in user's favorites
+    - search: Search in movie titles
+    """
+
+    serializer_class = WatchlistItemSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+
+    @swagger_auto_schema(
+        operation_description="Get current user's watchlist items with filtering",
+        manual_parameters=[
+            openapi.Parameter(
+                "status",
+                openapi.IN_QUERY,
+                description="Filter by status (watchlist, watched, watching)",
+                type=openapi.TYPE_STRING,
+                enum=["watchlist", "watched", "watching"],
+            ),
+            openapi.Parameter(
+                "is_favorite",
+                openapi.IN_QUERY,
+                description="Filter by favorite status (true, false)",
+                type=openapi.TYPE_BOOLEAN,
+            ),
+            openapi.Parameter(
+                "search",
+                openapi.IN_QUERY,
+                description="Search for movies by title",
+                type=openapi.TYPE_STRING,
+            ),
+        ],
+        responses={
+            200: openapi.Response(
+                description="Successfully retrieved watchlist items",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "next": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for next page"
+                        ),
+                        "previous": openapi.Schema(
+                            type=openapi.TYPE_STRING, nullable=True, description="URL for previous page"
+                        ),
+                        "count": openapi.Schema(type=openapi.TYPE_INTEGER, description="Total count of items"),
+                        "results": openapi.Schema(
+                            type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)
+                        ),
+                    },
+                ),
+            ),
+            401: "Unauthorized - Invalid or missing token",
+        },
+        security=[{"Token": []}],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Watchlist.objects.filter(user=user).select_related("movie")
+
+        # Filter by status if provided
+        status = self.request.query_params.get("status", None)
+        if status and status in [choice[0] for choice in Watchlist.Statuses.choices]:
+            queryset = queryset.filter(status=status)
+
+        # Filter by favorite status if provided
+        is_favorite = self.request.query_params.get("is_favorite", None)
+        if is_favorite is not None:
+            is_favorite = is_favorite.lower() == "true"
+            # Get list of favorite movie IDs for this user
+            favorite_movie_ids = Favorite.objects.filter(user=user).values_list("movie_id", flat=True)
+
+            if is_favorite:
+                queryset = queryset.filter(movie_id__in=favorite_movie_ids)
+            else:
+                queryset = queryset.exclude(movie_id__in=favorite_movie_ids)
+        
+        # Search by movie title if provided
+        search_query = self.request.query_params.get("search", None)
+        if search_query:
+            queryset = queryset.filter(movie__title__icontains=search_query)
+
+        return queryset.order_by("-updated_at")
