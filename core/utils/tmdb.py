@@ -7,6 +7,8 @@ import pprint
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from django.core.cache import cache
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -393,3 +395,58 @@ class TMDBClient:
         response = self._get(f"tv/{tv_id}/season/{season_number}")
         response = self.process_season_data(response)
         return response
+        
+    def get_genre_movies(self, genre_id: int, page: int = 1) -> List[Dict]:
+        """
+        Get movies by genre.
+
+        Args:
+            genre_id: TMDB genre ID
+            page: Page number for pagination
+
+        Returns:
+            List of movies in the specified genre
+        """
+        logger.debug(f"Getting movies for genre ID: {genre_id}, page: {page}")
+        params = {"with_genres": genre_id, "page": page}
+        response = self._get("discover/movie", params)
+        results = response.get("results", [])
+        processed_results = []
+        for movie in results:
+            processed_results.append(self.process_movie_data(movie))
+        return processed_results
+        
+    def get_genre_pagination_info(self, genre_id: int, page: int = 1) -> Dict:
+        """
+        Get pagination information for genre movies.
+
+        Args:
+            genre_id: TMDB genre ID
+            page: Page number for pagination
+
+        Returns:
+            Dictionary with pagination information including total_pages and total_results
+        """
+        logger.debug(f"Getting pagination info for genre ID: {genre_id}, page: {page}")
+        
+        # Try to get from cache first
+        cache_key = f"tmdb_genre_pagination_{genre_id}_page_{page}"
+        cached_info = cache.get(cache_key)
+        
+        if cached_info:
+            logger.debug(f"Retrieved pagination info for genre {genre_id}, page {page} from cache")
+            return cached_info
+            
+        params = {"with_genres": genre_id, "page": page}
+        response = self._get("discover/movie", params)
+        
+        pagination_info = {
+            "page": response.get("page", page),
+            "total_pages": response.get("total_pages", 1),
+            "total_results": response.get("total_results", 0)
+        }
+        
+        # Cache for 1 hour
+        cache.set(cache_key, pagination_info, 60 * 60)
+        
+        return pagination_info

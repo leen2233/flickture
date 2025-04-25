@@ -7,6 +7,8 @@ from .views import (
     EpisodeListView,
     FavoriteAPIView,
     FeedView,
+    GenreListView,
+    GenreMoviesView,
     ListViewSet,
     MovieCommentsViewSet,
     MovieDetailView,
@@ -32,6 +34,9 @@ urlpatterns = [
     path("movies/<str:tmdb_id>/<str:type>", MovieDetailView.as_view(), name="movie-detail"),
     path("movies/<str:tmdb_id>/cast/", CastListAPIView.as_view(), name="movie-cast"),
     path("movies/<str:tmdb_id>/season/<int:season_number>", EpisodeListView.as_view(), name="movie-season-details"),
+    # Genre endpoints
+    path("genres/", GenreListView.as_view(), name="genre-list"),
+    path("genres/<str:genre_id>/movies/", GenreMoviesView.as_view(), name="genre-movies"),
     # Person endpoints
     path("persons/<str:tmdb_id>/", PersonDetailView.as_view(), name="person-detail"),
     path("persons/<str:tmdb_id>/filmography/", PersonFilmographyListView.as_view(), name="person-filmography"),
