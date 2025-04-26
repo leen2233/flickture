@@ -159,6 +159,15 @@ class TMDBClient:
             processed_results.append(self.process_movie_data(movie))
         return processed_results
 
+    def get_upcoming_movies(self, page: int = 1) -> List[Dict]:
+        """Get upcoming movies"""
+        response = self._get("movie/upcoming", {"page": page})
+        results = response.get("results", [])
+        processed_results = []
+        for movie in results:
+            processed_results.append(self.process_movie_data(movie))
+        return processed_results
+
     def get_collection_details(self, collection_id: int) -> Dict:
         """
         Get details about a movie collection.

@@ -193,7 +193,7 @@ class MovieDiscoverView(generics.ListAPIView):
                 description="Category of movies to fetch",
                 type=openapi.TYPE_STRING,
                 required=True,
-                enum=["popular", "now_playing", "top_rated"],
+                enum=["popular", "now_playing", "top_rated", "upcoming"],
             ),
             openapi.Parameter(
                 "page", openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER, default=1
@@ -217,7 +217,7 @@ class MovieDiscoverView(generics.ListAPIView):
             logger.warning(f"MovieDiscoverView: Invalid page value {page}, defaulting to 1")
             page = 1
 
-        if category not in ["popular", "now_playing", "top_rated"]:
+        if category not in ["popular", "now_playing", "top_rated", "upcoming"]:
             logger.warning(f"MovieDiscoverView: Invalid category {category}, defaulting to 'popular'")
             category = "popular"
 
@@ -238,6 +238,8 @@ class MovieDiscoverView(generics.ListAPIView):
                 results = tmdb_client.get_popular_movies(page)
             elif category == "now_playing":
                 results = tmdb_client.get_now_playing_movies(page)
+            elif category == "upcoming":
+                results = tmdb_client.get_upcoming_movies(page)
             else:  # top_rated
                 results = tmdb_client.get_top_rated_movies(page)
 
