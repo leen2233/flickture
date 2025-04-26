@@ -43,10 +43,10 @@ urlpatterns = [
     path("persons/<str:tmdb_id>/follow/", PersonFollowView.as_view(), name="person-follow"),
     # User collection endpoints
     path("watchlist/", WatchlistAPIView.as_view(), name="watchlist-list"),
-    path("watchlist/<str:tmdb_id>/", WatchlistAPIView.as_view(), name="watchlist-detail"),
+    path("watchlist/<str:type>/<str:tmdb_id>/", WatchlistAPIView.as_view(), name="watchlist-detail"),
     path("watchlist/movies/<str:status>/", WatchlistMoviesView.as_view(), name="watchlist-movies"),
     path("favorites/", FavoriteAPIView.as_view(), name="favorites"),
-    path("favorites/<str:tmdb_id>/", FavoriteAPIView.as_view(), name="favorite-detail"),
+    path("favorites/<str:type>/<str:tmdb_id>/", FavoriteAPIView.as_view(), name="favorite-detail"),
     # collection endpoints
     path("collections/<str:tmdb_id>/", CollectionDetailAPIView.as_view(), name="collection-detail"),
     # feed endpoints

@@ -137,23 +137,29 @@ class WatchlistSerializer(BaseSerializer):
 
     movie = MovieListSerializer(read_only=True)
     tmdb_id = serializers.CharField(write_only=True)
+    type = serializers.CharField(write_only=True)
     status = serializers.ChoiceField(choices=Watchlist.Statuses.choices)
 
     class Meta:
         model = Watchlist
-        fields = ["id", "movie", "status", "tmdb_id", "created_at", "updated_at"]
+        fields = ["id", "movie", "status", "tmdb_id", "type", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
 
-    def validate_tmdb_id(self, value):
-        try:
-            self.movie = Movie.objects.get(tmdb_id=value)
-            return value
-        except Movie.DoesNotExist:
-            raise serializers.ValidationError("Movie with this TMDB ID does not exist")
+    def validate(self, attrs):
+        if attrs.get("tmdb_id") or attrs.get("type"):
+            try:
+                print(attrs.get("tmdb_id"), attrs.get("type"))
+                self.movie = Movie.objects.get(tmdb_id=attrs.get("tmdb_id"), type=attrs.get("type"))
+                return attrs
+            except Movie.DoesNotExist:
+                raise serializers.ValidationError("Movie with this TMDB ID does not exist")
+        else:
+            return attrs
 
     def create(self, validated_data):
         tmdb_id = validated_data.pop("tmdb_id")
-        movie = Movie.objects.get(tmdb_id=tmdb_id)
+        type = validated_data.pop("type")
+        movie = Movie.objects.get(tmdb_id=tmdb_id, type=type)
         return Watchlist.objects.create(movie=movie, **validated_data)
 
 
