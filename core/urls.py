@@ -32,7 +32,7 @@ urlpatterns = [
     path("movies/search/multi/", MultiSearchView.as_view(), name="movie-search-multi"),
     path("movies/discover/", MovieDiscoverView.as_view(), name="movie-discover"),
     path("movies/<str:tmdb_id>/<str:type>", MovieDetailView.as_view(), name="movie-detail"),
-    path("movies/<str:tmdb_id>/cast/", CastListAPIView.as_view(), name="movie-cast"),
+    path("movies/<str:tmdb_id>/<str:type>/cast/", CastListAPIView.as_view(), name="movie-cast"),
     path("movies/<str:tmdb_id>/season/<int:season_number>", EpisodeListView.as_view(), name="movie-season-details"),
     # Genre endpoints
     path("genres/", GenreListView.as_view(), name="genre-list"),
