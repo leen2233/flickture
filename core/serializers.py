@@ -195,6 +195,7 @@ class CommentSerializer(BaseSerializer):
             "is_liked",
             "responses",
             "is_owner",
+            "parent",
         ]
         read_only_fields = ["user", "likes_count", "created_at", "updated_at"]
 

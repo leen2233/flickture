@@ -371,7 +371,7 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
         security=[{"Token": []}],
     )
     @action(detail=True, methods=["post"])
-    def like(self, request, movie_id=None, pk=None):
+    def like(self, request, movie_id=None, type=None, pk=None):
         if not request.user.is_authenticated:
             return Response({"detail": "Not authenticated"}, status=status.HTTP_403_FORBIDDEN)
         logger.debug(f"MovieCommentsViewSet: Toggle like for comment {pk}")
