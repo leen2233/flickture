@@ -331,6 +331,7 @@ class FeedEventSerializer(serializers.Serializer):
 
         return {
             "id": movie.id,
+            "tmdb_id": movie.tmdb_id,
             "title": movie.title,
             "poster": movie.poster_url,
             "year": str(movie.year) if movie.year else "",
@@ -339,6 +340,7 @@ class FeedEventSerializer(serializers.Serializer):
             "runtime": movie.runtime,
             "vote_count": movie.vote_count,
             "rating": movie.rating,
+            "type": movie.type,
         }
 
     def get_show(self, obj):
@@ -354,12 +356,14 @@ class FeedEventSerializer(serializers.Serializer):
 
         return {
             "id": show.id,
+            "tmdb_id": show.tmdb_id,
             "title": show.title,
             "poster": show.poster_url,
             "year": str(show.year) if show.year else "",
             "genres": genre_names,
             "overview": show.plot,
             "rating": show.rating,
+            "type": show.type,
         }
 
     def get_episode(self, obj):
