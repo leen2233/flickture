@@ -315,7 +315,7 @@ class FeedEventSerializer(serializers.Serializer):
             "name": user.full_name or user.username,
             "avatar": self.context["request"].build_absolute_uri(user.avatar.url)
             if user.avatar
-            else "/default-avatar.png",
+            else "https://flickture.leen2233.me/default-avatar.png",
         }
 
     def get_movie(self, obj):
