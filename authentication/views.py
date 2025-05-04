@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import filters, generics, status
@@ -88,26 +89,21 @@ class UserFollowersListView(generics.ListAPIView):
 
     def get_queryset(self):
         username = self.kwargs.get("username")
-        try:
-            user = User.objects.get(username=username)
+        user = get_object_or_404(User, username=username)
 
-            # Check if the profile is private and the requester is not the owner
-            if not user.is_public and (self.request.user.is_anonymous or user != self.request.user):
-                from rest_framework.exceptions import PermissionDenied
+        # Check if the profile is private and the requester is not the owner
+        if not user.is_public and (self.request.user.is_anonymous or user != self.request.user):
+            from rest_framework.exceptions import PermissionDenied
 
-                raise PermissionDenied("This profile is private")
+            raise PermissionDenied("This profile is private")
 
-            # Get followers with search functionality if provided
-            queryset = user.followers.all()
-            search_query = self.request.query_params.get("search", None)
-            if search_query:
-                queryset = queryset.filter(Q(username__icontains=search_query) | Q(full_name__icontains=search_query))
+        # Get followers with search functionality if provided
+        queryset = user.followers.all()
+        search_query = self.request.query_params.get("search", None)
+        if search_query:
+            queryset = queryset.filter(Q(username__icontains=search_query) | Q(full_name__icontains=search_query))
 
-            return queryset
-        except User.DoesNotExist:
-            from rest_framework.exceptions import NotFound
-
-            raise NotFound("User not found")
+        return queryset
 
 
 class UserFollowingListView(generics.ListAPIView):
@@ -416,7 +412,7 @@ class UserWatchlistView(generics.ListAPIView):
     """
 
     serializer_class = WatchlistItemSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     pagination_class = StandardResultsPagination
 
     @swagger_auto_schema(
@@ -469,7 +465,15 @@ class UserWatchlistView(generics.ListAPIView):
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
-        user = self.request.user
+        username = self.kwargs.get("username")
+        user = get_object_or_404(User, username=username)
+
+        # Check if the profile is private and the requester is not the owner
+        if not user.is_public and (self.request.user.is_anonymous or user != self.request.user):
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("This profile is private")
+
         queryset = Watchlist.objects.filter(user=user).select_related("movie")
 
         # Filter by status if provided
@@ -488,7 +492,7 @@ class UserWatchlistView(generics.ListAPIView):
                 queryset = queryset.filter(movie_id__in=favorite_movie_ids)
             else:
                 queryset = queryset.exclude(movie_id__in=favorite_movie_ids)
-        
+
         # Search by movie title if provided
         search_query = self.request.query_params.get("search", None)
         if search_query:
