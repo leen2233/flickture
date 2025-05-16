@@ -245,6 +245,7 @@ class ListMovieSerializer(serializers.ModelSerializer):
 
 class ListSerializer(serializers.ModelSerializer):
     creator = serializers.SerializerMethodField()
+    is_creator = serializers.SerializerMethodField()
     likes_count = serializers.IntegerField(read_only=True)
     movies_count = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
@@ -261,13 +262,20 @@ class ListSerializer(serializers.ModelSerializer):
             "likes_count",
             "movies_count",
             "is_liked",
+            "is_creator",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["creator", "likes_count", "movies_count", "created_at", "updated_at"]
+        read_only_fields = ["creator", "likes_count", "movies_count", "is_creator", "created_at", "updated_at"]
 
     def get_creator(self, obj):
         return obj.creator.username
+
+    def get_is_creator(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.creator == request.user
+        return False
 
     def get_is_liked(self, obj):
         request = self.context.get("request")

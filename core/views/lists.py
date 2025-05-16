@@ -5,12 +5,27 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+
 from ..models import List, Movie
 from ..serializers import ListDetailSerializer, ListSerializer
 
 
+class IsCreatorOrReadOnly(permissions.BasePermission):
+    """
+    Custom permission to only allow creators of a list to edit or delete it.
+    """
+    def has_object_permission(self, request, view, obj):
+        # Read permissions are allowed to any request,
+        # so we'll always allow GET, HEAD or OPTIONS requests.
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # Write permissions are only allowed to the creator of the list
+        return obj.creator == request.user
+
+
 class ListViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsCreatorOrReadOnly]
     serializer_class = ListSerializer
 
     def get_queryset(self):
