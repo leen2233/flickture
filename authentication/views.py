@@ -330,7 +330,7 @@ class UserPublicView(generics.RetrieveAPIView):
     def get_object(self):
         obj = super().get_object()
         # Check if the user's profile is public or if the requester is the owner
-        if not obj.is_public and (self.request.user.is_anonymous or obj != self.request.user):
+        if not obj.is_public and (self.request.user.is_anonymous or obj != self.request.user) and self.request.user not in obj.followers.all():
             from rest_framework.exceptions import PermissionDenied
 
             raise PermissionDenied("This profile is private")
