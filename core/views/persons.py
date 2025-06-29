@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 
 from core.models import Movie, MovieCast, Person, PersonFollower
 from core.serializers import MovieCastSerializer, MovieSerializer, PersonSerializer
-from core.utils.tmdb import TMDBClient
+from utils.tmdb import TMDBClient
 
 # Configure logger
 logger = logging.getLogger(__name__)

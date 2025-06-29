@@ -6,13 +6,23 @@ from core.serializers import MovieSerializer
 from .models import User
 
 
+class CaptchaSerializer(serializers.Serializer):
+    captcha_key = serializers.CharField(read_only=True)
+    captcha_image = serializers.CharField(read_only=True)
+
+
 class SignUpSerializer(serializers.ModelSerializer):
+    captcha_key = serializers.CharField()
+    captcha_input = serializers.CharField()
+
     class Meta:
         model = User
-        fields = ["username", "email", "password", "full_name"]
+        fields = ["username", "email", "password", "full_name", "captcha_key", "captcha_input"]
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):
+        validated_data.pop("captcha_key")
+        validated_data.pop("captcha_input")
         return User.objects.create_user(**validated_data)
 
 
@@ -102,12 +112,12 @@ class WatchlistItemSerializer(serializers.ModelSerializer):
     """Serializer for user's watchlist items with movie details and favorite status"""
     movie = MovieSerializer(read_only=True)
     is_favorite = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Watchlist
         fields = ['id', 'movie', 'status', 'created_at', 'updated_at', 'is_favorite']
         read_only_fields = fields
-    
+
     def get_is_favorite(self, obj):
         """Check if the movie is in user's favorites"""
         return Favorite.objects.filter(user=obj.user, movie=obj.movie).exists()

@@ -23,7 +23,7 @@ from core.serializers import (
     MovieListSerializer,
     MovieSerializer,
 )
-from core.utils.tmdb import TMDBClient
+from utils.tmdb import TMDBClient
 
 # Initialize TMDB client
 tmdb_client = TMDBClient(api_key=settings.TMDB_API_KEY)
@@ -354,11 +354,9 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return Response({"detail": "Not authenticated"}, status=status.HTTP_403_FORBIDDEN)
-        logger.info(f"MovieCommentsViewSet: Creating new comment for movie {kwargs.get('movie_id')}")
         try:
             return super().create(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"MovieCommentsViewSet: Error creating comment: {str(e)}", exc_info=True)
+        except Exception:
             raise
 
     @swagger_auto_schema(
@@ -374,17 +372,14 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
     def like(self, request, movie_id=None, type=None, pk=None):
         if not request.user.is_authenticated:
             return Response({"detail": "Not authenticated"}, status=status.HTTP_403_FORBIDDEN)
-        logger.debug(f"MovieCommentsViewSet: Toggle like for comment {pk}")
         comment = self.get_object()
         user = request.user
 
         try:
             if user in comment.likes.all():
-                logger.info(f"MovieCommentsViewSet: User {user.id} unliking comment {pk}")
                 comment.likes.remove(user)
                 return Response({"liked": False, "likes_count": comment.likes.count()})
             else:
-                logger.info(f"MovieCommentsViewSet: User {user.id} liking comment {pk}")
                 comment.likes.add(user)
                 return Response({"liked": True, "likes_count": comment.likes.count()})
         except Exception as e:
@@ -407,7 +402,7 @@ class MovieCommentsViewSet(viewsets.ModelViewSet):
         security=[{"Token": []}],
     )
     @action(detail=True, methods=["post"])
-    def reply(self, request, movie_id=None, pk=None):
+    def reply(self, request, movie_id=None, type=None, pk=None):
         if not request.user.is_authenticated:
             return Response({"detail": "Not authenticated"}, status=status.HTTP_403_FORBIDDEN)
         parent_comment = self.get_object()
@@ -438,17 +433,14 @@ class MultiSearchView(generics.ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         query = request.query_params.get("query")
-        logger.debug(f"ContentSearchView: Received search query: {query}")
 
         if not query:
-            logger.warning("ContentSearchView: No query provided")
             raise ValidationError({"query": "Search query is required"})
 
         cache_key = f"content_search_{query}"
         cached_results = cache.get(cache_key)
 
         if cached_results is not None:
-            logger.info(f"ContentSearchView: Returning cached results for query: {query}")
             return Response(cached_results)
 
         try:

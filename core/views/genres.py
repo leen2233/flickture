@@ -12,8 +12,8 @@ from rest_framework.response import Response
 
 from core.models import Genre, Movie
 from core.serializers import GenreSerializer, MovieListSerializer
-from core.utils.tmdb import TMDBClient
 from core.views.movies import StandardResultsSetPagination
+from utils.tmdb import TMDBClient
 
 # Initialize TMDB client
 tmdb_client = TMDBClient(api_key=settings.TMDB_API_KEY)

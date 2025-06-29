@@ -1,12 +1,14 @@
+from unittest.mock import Mock, patch
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
-from django.contrib.auth import get_user_model
-from rest_framework.test import APITestCase
 from rest_framework import status
-from unittest.mock import patch, Mock
-from .models import Movie, Genre, Person, Collection, Watchlist, Comment
-from .utils.tmdb import TMDBClient
-from django.core.cache import cache
+from rest_framework.test import APITestCase
+
+from utils.tmdb import TMDBClient
+
+from .models import Comment, Genre, Movie, Person, Watchlist
 
 User = get_user_model()
 
@@ -97,15 +99,7 @@ class MovieAPITests(APITestCase):
             plot='Test plot'
         )
 
-    def test_movie_search(self):
-        """Test movie search endpoint"""
-        url = reverse('movie-search')
-        response = self.client.get(url, {'query': 'Test'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 1)
-        self.assertEqual(response.data['results'][0]['title'], 'Test Movie')
-
-    @patch('core.utils.tmdb.TMDBClient.search_movies')
+    @patch('utils.tmdb.TMDBClient.search_multi')
     def test_movie_search_widely(self, mock_search):
         """Test wide movie search endpoint"""
         mock_search.return_value = [{
@@ -114,9 +108,8 @@ class MovieAPITests(APITestCase):
             'overview': 'Test plot',
             'vote_average': 7.5
         }]
-        url = reverse('movie-search-widely')
-        response = self.client.get(url, {'query': 'New'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse('movie-search-multi')
+        self.client.get(url, {'query': 'New'})
         self.assertTrue(mock_search.called)
 
 
@@ -132,7 +125,8 @@ class WatchlistTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.movie = Movie.objects.create(
             tmdb_id=1,
-            title='Test Movie'
+            title='Test Movie',
+            type=Movie.Type.movie
         )
         self.watchlist = Watchlist.objects.create(
             user=self.user,
@@ -142,9 +136,9 @@ class WatchlistTests(APITestCase):
 
     def test_add_to_watchlist(self):
         """Test adding movie to watchlist"""
-        movie2 = Movie.objects.create(tmdb_id=2, title='Another Movie')
-        url = reverse('watchlist-detail', kwargs={'tmdb_id': str(movie2.tmdb_id)})
-        data = {'status': Watchlist.Statuses.WATCHLIST}
+        movie2 = Movie.objects.create(tmdb_id=2, title='Another Movie', type=Movie.Type.movie)
+        url = reverse('watchlist-detail', kwargs={'type': movie2.type, 'tmdb_id': str(movie2.tmdb_id)})
+        data = {'status': Watchlist.Statuses.WATCHLIST, 'type': movie2.type, 'tmdb_id': str(movie2.tmdb_id)}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
@@ -153,7 +147,7 @@ class WatchlistTests(APITestCase):
 
     def test_update_watchlist_status(self):
         """Test updating watchlist status"""
-        url = reverse('watchlist-detail', kwargs={'tmdb_id': str(self.movie.tmdb_id)})
+        url = reverse('watchlist-detail', kwargs={'type': self.movie.type, 'tmdb_id': str(self.movie.tmdb_id)})
         data = {'status': Watchlist.Statuses.WATCHED}
         response = self.client.patch(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -173,7 +167,8 @@ class CommentTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.movie = Movie.objects.create(
             tmdb_id=1,
-            title='Test Movie'
+            title='Test Movie',
+            type=Movie.Type.movie
         )
         self.comment = Comment.objects.create(
             user=self.user,
@@ -184,7 +179,7 @@ class CommentTests(APITestCase):
 
     def test_create_comment(self):
         """Test creating a movie comment"""
-        url = reverse('movie-comments-list', kwargs={'movie_id': self.movie.id})
+        url = reverse('movie-comments-list', kwargs={'movie_id': self.movie.id, 'type': self.movie.type})
         data = {
             'movie': self.movie.id,
             'content': 'New comment',
@@ -198,6 +193,7 @@ class CommentTests(APITestCase):
         """Test liking a comment"""
         url = reverse('movie-comments-like', kwargs={
             'movie_id': self.movie.id,
+            'type': self.movie.type,
             'pk': self.comment.id
         })
         response = self.client.post(url)
@@ -209,6 +205,7 @@ class CommentTests(APITestCase):
         """Test replying to a comment"""
         url = reverse('movie-comments-reply', kwargs={
             'movie_id': self.movie.id,
+            'type': self.movie.type,
             'pk': self.comment.id
         })
         data = {

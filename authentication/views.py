@@ -1,16 +1,21 @@
+import base64
+
 from django.contrib.auth import authenticate
-from django.db.models import Q
+from django.core.cache import cache
+from django.db.models import ObjectDoesNotExist, Q
 from django.shortcuts import get_object_or_404
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import filters, generics, status
 from rest_framework.authtoken.models import Token
+from rest_framework.fields import uuid
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import Favorite, Watchlist
+from utils.captcha import generate_captcha_image, generate_captcha_text
 
 from .models import User
 from .serializers import (
@@ -171,7 +176,7 @@ class UserFollowingListView(generics.ListAPIView):
                 queryset = queryset.filter(Q(username__icontains=search_query) | Q(full_name__icontains=search_query))
 
             return queryset
-        except User.DoesNotExist:
+        except ObjectDoesNotExist:
             from rest_framework.exceptions import NotFound
 
             raise NotFound("User not found")
@@ -207,9 +212,22 @@ class LoginView(APIView):
     def post(self, request):
         login = request.data.get("login")
         password = request.data.get("password")
+        captcha_key = request.data.get("captcha_key")
+        captcha_input = request.data.get("captcha_input")
 
         if not login or not password:
             return Response({"error": "Please provide both login and password"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not captcha_key or not captcha_input:
+            return Response({"error": "Please solve captcha to login"}, status=status.HTTP_400_BAD_REQUEST)
+
+        stored_captcha = cache.get(f'captcha:{captcha_key}')
+        print(stored_captcha, captcha_input.upper())
+        if not stored_captcha or stored_captcha != captcha_input.upper():
+            cache.delete(f'captcha:{captcha_key}')
+            return Response({'error': 'Invalid CAPTCHA'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cache.delete(f'captcha:{captcha_key}')  # Prevent reuse
 
         # Try to authenticate with username
         user = authenticate(username=login, password=password)
@@ -268,6 +286,16 @@ class SignUpView(APIView):
     def post(self, request):
         serializer = SignUpSerializer(data=request.data)
         if serializer.is_valid():
+            captcha_key = serializer.validated_data.get('captcha_key')
+            captcha_input = serializer.validated_data.get('captcha_input', '').upper()
+
+            stored_captcha = cache.get(f'captcha:{captcha_key}')
+            if not stored_captcha or stored_captcha != captcha_input.upper():
+                cache.delete(f'captcha:{captcha_key}')
+                return Response({'error': 'Invalid CAPTCHA'}, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.delete(f'captcha:{captcha_key}')
+
             user = serializer.save()
             token, created = Token.objects.get_or_create(user=user)
             return Response({"token": token.key}, status=status.HTTP_201_CREATED)
@@ -484,7 +512,7 @@ class UserWatchlistView(generics.ListAPIView):
         # Filter by favorite status if provided
         is_favorite = self.request.query_params.get("is_favorite", None)
         if is_favorite is not None:
-            is_favorite = is_favorite.lower() == "true"
+            is_favorite = str(is_favorite).lower() == "true"
             # Get list of favorite movie IDs for this user
             favorite_movie_ids = Favorite.objects.filter(user=user).values_list("movie_id", flat=True)
 
@@ -499,3 +527,16 @@ class UserWatchlistView(generics.ListAPIView):
             queryset = queryset.filter(movie__title__icontains=search_query)
 
         return queryset.order_by("-updated_at")
+
+
+class CaptchaView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        captcha_text = generate_captcha_text()
+        captcha_key = str(uuid.uuid4())
+        cache.set(f'captcha:{captcha_key}', captcha_text, timeout=150)
+        captcha_image = generate_captcha_image(captcha_text)
+        captcha_image_base64 = base64.b64encode(captcha_image).decode('utf-8')
+        data = {'captcha_key': captcha_key, 'captcha_image': f'data:image/png;base64,{captcha_image_base64}'}
+        return Response(data, status=status.HTTP_200_OK)
